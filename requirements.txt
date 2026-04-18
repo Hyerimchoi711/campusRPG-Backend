@@ -1,0 +1,12 @@
+# Campus Life RPG - Python Requirements
+# 이 파일은 uv 가상환경에서 사용할 파이썬 패키지들을 관리합니다.
+# 메인 백엔드(Node.js)와 프론트엔드(React) 패키지는 각각의 package.json에서 관리됩니다.
+
+# (예시) 데이터베이스 스크립트나 데이터 분석 등 파이썬 작업이 필요할 때 아래와 같이 추가할 수 있습니다.
+# mysql-connector-python==8.3.0
+# python-dotenv==1.0.1
+
+# Frontend Languages Used:
+# - HTML5
+# - CSS3
+# - JavaScript (Vanilla JS, to be migrated to React/JSX)

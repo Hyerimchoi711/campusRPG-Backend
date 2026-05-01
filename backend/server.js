@@ -4,6 +4,7 @@ const authRoutes = require('./routes/auth');
 const meRoutes = require('./routes/me');
 const gameApi = require('./routes/gameApi');
 const { createCorsMiddleware } = require('./corsOptions');
+const { registerSwagger } = require('./swagger');
 
 const app = express();
 // 기본 5555: macOS에서 AirPlay가 5000을 점유하는 경우가 많음 (.env의 PORT로 덮어씀)
@@ -19,6 +20,8 @@ app.use('/api/me', meRoutes);
 // 상점·지갑·인벤토리·헬스 (gameApi는 /api 하위에 마운트)
 app.use('/api', gameApi);
 
+registerSwagger(app);
+
 // Basic Route
 app.get('/', (req, res) => {
   res.send('Campus Life RPG API is running!');
@@ -26,4 +29,5 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Swagger index: http://localhost:${PORT}/docs`);
 });

@@ -15,7 +15,7 @@ async function generateFriendCode(conn) {
       code += FRIEND_CODE_CHARS[Math.floor(Math.random() * FRIEND_CODE_CHARS.length)];
     }
     const [rows] = await conn.query(
-      'SELECT id FROM users WHERE friend_code = ? FOR UPDATE',
+      'SELECT id FROM users WHERE friend_code = ?',
       [code]
     );
     if (rows.length === 0) return code;
@@ -172,7 +172,7 @@ router.post('/register', async (req, res) => {
     );
     await conn.query(
       `INSERT INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date)
-       VALUES (?, 0, 0, 0, 0, 0, 0, CURDATE())`,
+       VALUES (?, 0, 0, 0, 0, 0, 0, date('now'))`,
       [userId]
     );
 
@@ -184,7 +184,7 @@ router.post('/register', async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    if (err.code === 'ER_DUP_ENTRY') {
+    if (err.code === 'SQLITE_CONSTRAINT') {
       if (String(err.message).includes('email')) {
         return res.status(409).json({ error: '이미 사용 중인 이메일입니다.' });
       }

@@ -102,7 +102,7 @@ router.post('/inventory/purchase', async (req, res) => {
     await conn.beginTransaction();
 
     const [[item]] = await conn.query(
-      'SELECT id, price FROM items WHERE id = ? FOR UPDATE',
+      'SELECT id, price FROM items WHERE id = ?',
       [itemId]
     );
     if (!item) {
@@ -111,7 +111,7 @@ router.post('/inventory/purchase', async (req, res) => {
     }
 
     const [[userRow]] = await conn.query(
-      'SELECT coin FROM users WHERE id = ? FOR UPDATE',
+      'SELECT coin FROM users WHERE id = ?',
       [userId]
     );
     if (!userRow) {
@@ -127,7 +127,7 @@ router.post('/inventory/purchase', async (req, res) => {
 
     await conn.query(
       `INSERT INTO user_inventory (user_id, item_id, quantity) VALUES (?, ?, 1)
-       ON DUPLICATE KEY UPDATE quantity = quantity + 1`,
+       ON CONFLICT(user_id, item_id) DO UPDATE SET quantity = quantity + 1`,
       [userId, itemId]
     );
 

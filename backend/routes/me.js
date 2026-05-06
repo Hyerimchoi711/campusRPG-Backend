@@ -16,7 +16,7 @@ router.get('/', requireAuth, async (req, res) => {
     }
     const u = users[0];
     const [pets] = await db.query(
-      `SELECT id, name, level, evolution_stage, animal_type
+      `SELECT id, name, level, evolution_stage, animal_type, lineage_type, last_evolved_at
        FROM pets WHERE user_id = ? ORDER BY id ASC LIMIT 1`,
       [req.userId]
     );
@@ -42,6 +42,8 @@ router.get('/', requireAuth, async (req, res) => {
             level: p.level,
             evolutionStage: p.evolution_stage,
             animalType: p.animal_type,
+            lineageType: p.lineage_type,
+            lastEvolvedAt: p.last_evolved_at,
           }
         : null,
     });

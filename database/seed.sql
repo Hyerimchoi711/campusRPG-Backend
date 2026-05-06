@@ -58,3 +58,57 @@ INSERT INTO items (name, description, price, image_url, icon_emoji, effect_type)
 
 INSERT INTO user_inventory (user_id, item_id, quantity) VALUES
 (1, 8, 2);
+
+UPDATE pets
+SET name = '부화중인 알'
+WHERE user_id = 1;
+
+UPDATE pets
+SET animal_type = 'cool_cat',
+    lineage_type = 'cat',
+    name = '고양이 용사',
+    last_evolved_at = datetime('now', '-3 days')
+WHERE user_id = 2;
+
+UPDATE pets
+SET animal_type = 'dog',
+    lineage_type = 'dog',
+    name = '튼튼 강아지',
+    last_evolved_at = datetime('now', '-1 day')
+WHERE user_id = 3;
+
+
+-- 2) 알 -> 유아기(첫 부화) 규칙
+-- required_level / required_user_exp 값은 기존 기준(3,100) 유지
+INSERT INTO egg_hatch_rules (
+  top_stat_type,
+  required_level,
+  required_user_exp,
+  to_lineage_type,
+  to_animal_type,
+  next_stage,
+  is_active
+) VALUES
+('health',     3, 100, 'fire',      '파이루', 1, 1),
+('diligence',  3, 100, 'water',     '워티',   1, 1),
+('focus',      3, 100, 'sprout',    '스푸티', 1, 1),
+('social',     3, 100, 'cloud',     '클루',   1, 1),
+('creativity', 3, 100, 'lightning', '라니',   1, 1);
+-- 3) 유아기 -> 진화형 규칙
+-- required_level / required_user_exp 값은 기존 기준(7,250) 유지
+INSERT INTO pet_evolution_rules (
+  lineage_type,
+  from_animal_type,
+  to_animal_type,
+  required_stage,
+  required_level,
+  required_user_exp,
+  priority,
+  is_active
+) VALUES
+('fire',      '파이루', '파이로소어',   1, 7, 250, 0, 1),
+('water',     '워티',   '워터북',       1, 7, 250, 0, 1),
+('sprout',    '스푸티', '스프라우트랫', 1, 7, 250, 0, 1),
+('cloud',     '클루',   '클라우드 윙',  1, 7, 250, 0, 1),
+('lightning', '라니',   '라이트닝 혼',  1, 7, 250, 0, 1);
+COMMIT;

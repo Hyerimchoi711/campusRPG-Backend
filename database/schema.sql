@@ -6,6 +6,9 @@ DROP TABLE IF EXISTS quests;
 DROP TABLE IF EXISTS schedules;
 DROP TABLE IF EXISTS user_inventory;
 DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS pet_evolution_history;
+DROP TABLE IF EXISTS pet_evolution_rules;
+DROP TABLE IF EXISTS egg_hatch_rules;
 DROP TABLE IF EXISTS stats;
 DROP TABLE IF EXISTS pets;
 DROP TABLE IF EXISTS users;
@@ -113,6 +116,41 @@ CREATE TABLE user_inventory (
     UNIQUE (user_id, item_id)
 );
 
+CREATE TABLE egg_hatch_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    top_stat_type TEXT NOT NULL CHECK (top_stat_type IN ('health', 'social', 'diligence', 'focus', 'creativity')),
+    required_level INTEGER NOT NULL DEFAULT 1,
+    required_user_exp INTEGER NOT NULL DEFAULT 0,
+    to_lineage_type TEXT NOT NULL,
+    to_animal_type TEXT NOT NULL,
+    next_stage INTEGER NOT NULL DEFAULT 1,
+    is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE pet_evolution_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lineage_type TEXT NOT NULL,
+    from_animal_type TEXT NOT NULL,
+    to_animal_type TEXT NOT NULL,
+    required_stage INTEGER NOT NULL,
+    required_level INTEGER NOT NULL DEFAULT 1,
+    required_user_exp INTEGER NOT NULL DEFAULT 0,
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    UNIQUE (lineage_type, from_animal_type, required_stage)
+);
+
+CREATE TABLE pet_evolution_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_id INTEGER NOT NULL,
+    from_animal_type TEXT NOT NULL,
+    to_animal_type TEXT NOT NULL,
+    evolved_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    trigger_user_exp INTEGER,
+    trigger_pet_level INTEGER,
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
+);
+
 CREATE TRIGGER trg_user_inventory_updated_at
 AFTER UPDATE ON user_inventory
 FOR EACH ROW
@@ -120,4 +158,31 @@ BEGIN
     UPDATE user_inventory
     SET updated_at = CURRENT_TIMESTAMP
     WHERE id = NEW.id;
+END;
+
+ALTER TABLE pets ADD COLUMN lineage_type TEXT;
+ALTER TABLE pets ADD COLUMN last_evolved_at TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_pets_user_id ON pets(user_id);
+
+CREATE TRIGGER trg_pets_lineage_guard_insert
+BEFORE INSERT ON pets
+FOR EACH ROW
+WHEN (
+  (NEW.animal_type = 'egg' AND NEW.lineage_type IS NOT NULL) OR
+  (NEW.animal_type <> 'egg' AND NEW.lineage_type IS NULL)
+)
+BEGIN
+  SELECT RAISE(ABORT, 'INVALID_PET_LINEAGE_STATE');
+END;
+
+CREATE TRIGGER trg_pets_lineage_guard_update
+BEFORE UPDATE ON pets
+FOR EACH ROW
+WHEN (
+  (NEW.animal_type = 'egg' AND NEW.lineage_type IS NOT NULL) OR
+  (NEW.animal_type <> 'egg' AND NEW.lineage_type IS NULL)
+)
+BEGIN
+  SELECT RAISE(ABORT, 'INVALID_PET_LINEAGE_STATE');
 END;

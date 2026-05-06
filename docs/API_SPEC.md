@@ -14,8 +14,9 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | 로그인 ID  | 이메일 또는 학번 (`student_id`)                           |
 | 대학교     | `university_name`                                  |
 | 나이      | `age`                                              |
-| 학년      | **DB에 컬럼 없음** — 추가 마이그레이션 후 API 응답에 포함 권장          |
-| 한줄소개    | **DB에 컬럼 없음** — `users.bio` 등 추가 후 프로필·친구 API에서 반환 |
+| 학년      | `users.school_year` (회원가입 입력, 1~6)                    |
+| 한줄소개    | `users.intro`                                           |
+| 아바타     | `users.avatar` (이모지 문자열)                                 |
 | 친구 코드   | `friend_code` (회원가입 시 발급)                          |
 
 
@@ -107,17 +108,24 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 ### 3.6 친구
 
 
-| 메서드  | 경로                                 | 설명                                                                  |
-| ---- | ---------------------------------- | ------------------------------------------------------------------- |
-| GET  | `/api/friends`                     | 수락된 친구 목록 (닉네임, 레벨, 펫 진화, 대학, 학년*, 한줄소개*, 아이콘/펫 이미지* — *는 스키마 확장 시) |
-| GET  | `/api/friends/requests/incoming`   | 받은 친구 요청                                                            |
-| POST | `/api/friends/request`             | 친구 코드로 요청 — body: `{ "friendCode": "..." }`                         |
-| POST | `/api/friends/requests/:id/accept` | 수락                                                                  |
-| POST | `/api/friends/requests/:id/reject` | 거절                                                                  |
-| POST | `/api/friends/remove`              | 친구 삭제 — body 예: `{ "friendUserId": 1 }`                             |
+| 메서드   | 경로                                 | 설명                                                                 |
+| ----- | ---------------------------------- | -------------------------------------------------------------------- |
+| GET   | `/api/friends`                     | 로그인 사용자의 친구 목록 (`friendUserId`, `sortOrder`, `nickname`, `intro`, `avatar`) |
+| PATCH | `/api/friends/order`               | 친구 정렬 순서 저장 — body: `{ "orderedUserIds": ["2","5",...] }`           |
+| DELETE| `/api/friends/:friendUserId`       | 친구 삭제 (양방향 관계 동시 삭제)                                                |
+| POST  | `/api/friends/requests`            | 친구 코드로 요청 — body: `{ "friendCode": "..." }`                        |
+| GET   | `/api/friends/requests/incoming`   | 받은 친구 요청 목록 (`id`, `fromUserId`, `nickname`, `intro`, `avatar`)     |
+| POST  | `/api/friends/requests/:id/accept` | 수락                                                                  |
+| POST  | `/api/friends/requests/:id/reject` | 거절                                                                  |
+
+### 3.7 사용자 공개 프로필
+
+| 메서드 | 경로 | 설명 |
+| --- | --- | --- |
+| GET | `/api/users/:userId` | 공개 프로필 조회 (`{ user: {...} }`, `friendCode` 항상 노출) |
 
 
-### 3.7 상점
+### 3.8 상점
 
 
 | 메서드  | 경로                        | 설명            |
@@ -126,7 +134,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 | POST | `/api/inventory/purchase` | 구매 (구현됨)      |
 
 
-### 3.8 가방(인벤토리)
+### 3.9 가방(인벤토리)
 
 
 | 메서드  | 경로                       | 설명                                          |

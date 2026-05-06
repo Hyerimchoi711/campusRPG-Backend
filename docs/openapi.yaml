@@ -25,6 +25,10 @@ tags:
     description: 사용자 코인 잔액
   - name: inventory
     description: 인벤토리 조회 및 구매
+  - name: friends
+    description: 친구 목록 및 친구 요청 관리
+  - name: users
+    description: 사용자 공개 프로필 조회
 
 paths:
   /:
@@ -296,6 +300,230 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorCodeResponse'
+
+  /api/friends:
+    get:
+      tags: [friends]
+      summary: 친구 목록 조회
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 친구 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [friends]
+                properties:
+                  friends:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FriendItem'
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/friends/order:
+    patch:
+      tags: [friends]
+      summary: 친구 정렬 순서 저장
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderedUserIds]
+              properties:
+                orderedUserIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 저장 성공
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/friends/{friendUserId}:
+    delete:
+      tags: [friends]
+      summary: 친구 삭제
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: friendUserId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 삭제 성공
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/friends/requests:
+    post:
+      tags: [friends]
+      summary: 친구 코드로 친구 요청
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [friendCode]
+              properties:
+                friendCode:
+                  type: string
+      responses:
+        '201':
+          description: 요청 생성 성공
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 친구 코드 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 중복/이미 친구
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/friends/requests/incoming:
+    get:
+      tags: [friends]
+      summary: 받은 친구 요청 조회
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 받은 요청 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FriendRequestItem'
+
+  /api/friends/requests/{id}/accept:
+    post:
+      tags: [friends]
+      summary: 친구 요청 수락
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 수락 성공
+        '404':
+          description: 요청 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 이미 처리된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/friends/requests/{id}/reject:
+    post:
+      tags: [friends]
+      summary: 친구 요청 거절
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 거절 성공
+        '404':
+          description: 요청 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/{userId}:
+    get:
+      tags: [users]
+      summary: 공개 프로필 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/PublicUser'
+        '404':
+          description: 사용자 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '402':
           description: 코인이 부족합니다
           content:
@@ -427,6 +655,7 @@ components:
         - major
         - university_name
         - age
+        - school_year
       properties:
         email:
           type: string
@@ -458,6 +687,11 @@ components:
           minimum: 1
           maximum: 120
           example: 24
+        school_year:
+          type: integer
+          minimum: 1
+          maximum: 6
+          example: 2
 
     RegisterResponse:
       type: object
@@ -486,6 +720,7 @@ components:
         - universityName
         - age
         - friendCode
+        - schoolYear
       properties:
         id:
           type: integer
@@ -515,9 +750,21 @@ components:
         age:
           type: integer
           example: 24
+        schoolYear:
+          type: integer
+          example: 2
+        school_year:
+          type: integer
+          example: 2
         friendCode:
           type: string
           example: AB23CD
+        intro:
+          type: string
+          example: 같이 성장해요!
+        avatar:
+          type: string
+          example: "🐱"
 
     Pet:
       type: object
@@ -538,7 +785,102 @@ components:
         animalType:
           type: string
           example: egg
+        lineageType:
+          type: string
+          nullable: true
+          example: fire
+        lastEvolvedAt:
+          type: string
+          nullable: true
+          example: '2026-05-06 14:00:00'
       nullable: true
+
+    FriendItem:
+      type: object
+      required: [friendUserId, sortOrder, nickname]
+      properties:
+        friendUserId:
+          type: integer
+          example: 2
+        sortOrder:
+          type: integer
+          example: 0
+        nickname:
+          type: string
+          example: campusMate
+        intro:
+          type: string
+          example: 안녕하세요
+        avatar:
+          type: string
+          example: "🐶"
+
+    FriendRequestItem:
+      type: object
+      required: [id, fromUserId, nickname]
+      properties:
+        id:
+          type: integer
+          example: 10
+        fromUserId:
+          type: integer
+          example: 3
+        createdAt:
+          type: string
+          example: '2026-05-06 15:22:10'
+        nickname:
+          type: string
+          example: requester
+        intro:
+          type: string
+          example: 친하게 지내요
+        avatar:
+          type: string
+          example: "🦊"
+
+    PublicUser:
+      type: object
+      required: [id, userId, nickname, universityName, major, schoolYear, age, friendCode]
+      properties:
+        id:
+          type: integer
+          example: 2
+        userId:
+          type: integer
+          example: 2
+        nickname:
+          type: string
+          example: campusMate
+        intro:
+          type: string
+          example: 같이 놀아요
+        avatar:
+          type: string
+          example: "🐼"
+        universityName:
+          type: string
+          example: Campus University
+        university_name:
+          type: string
+          example: Campus University
+        major:
+          type: string
+          example: Computer Science
+        schoolYear:
+          type: integer
+          example: 3
+        school_year:
+          type: integer
+          example: 3
+        age:
+          type: integer
+          example: 23
+        friendCode:
+          type: string
+          example: A1B2C3
+        friend_code:
+          type: string
+          example: A1B2C3
 
     MeResponse:
       type: object

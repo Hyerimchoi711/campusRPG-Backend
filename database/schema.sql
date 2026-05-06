@@ -186,3 +186,34 @@ WHEN (
 BEGIN
   SELECT RAISE(ABORT, 'INVALID_PET_LINEAGE_STATE');
 END;
+
+ALTER TABLE users ADD COLUMN school_year INTEGER DEFAULT 1;
+ALTER TABLE users ADD COLUMN intro TEXT DEFAULT '';
+ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '';
+
+CREATE TABLE friendships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    friend_user_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (friend_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT chk_friendships_not_self CHECK (user_id <> friend_user_id),
+    UNIQUE (user_id, friend_user_id)
+);
+
+CREATE TABLE friend_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user_id INTEGER NOT NULL,
+    to_user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT chk_friend_requests_not_self CHECK (from_user_id <> to_user_id)
+);
+
+CREATE UNIQUE INDEX uk_friend_requests_pending_pair
+ON friend_requests(from_user_id, to_user_id)
+WHERE status = 'pending';

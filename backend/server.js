@@ -3,6 +3,8 @@ const express = require('express');
 const authRoutes = require('./routes/auth');
 const meRoutes = require('./routes/me');
 const gameApi = require('./routes/gameApi');
+const friendsRoutes = require('./routes/friends');
+const usersRoutes = require('./routes/users');
 const { createCorsMiddleware } = require('./corsOptions');
 const { registerSwagger } = require('./swagger');
 
@@ -17,6 +19,8 @@ app.use(express.json());
 // 인증·프로필 (JWT)
 app.use('/api/auth', authRoutes);
 app.use('/api/me', meRoutes);
+app.use('/api/friends', friendsRoutes);
+app.use('/api/users', usersRoutes);
 // 상점·지갑·인벤토리·헬스 (gameApi는 /api 하위에 마운트)
 app.use('/api', gameApi);
 

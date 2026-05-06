@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', requireAuth, async (req, res) => {
   try {
     const [users] = await db.query(
-      `SELECT id, email, nickname, coin, exp, student_id, major, university_name, age, friend_code
+      `SELECT id, email, nickname, coin, exp, student_id, major, university_name, age, school_year, friend_code, intro, avatar
        FROM users WHERE id = ? LIMIT 1`,
       [req.userId]
     );
@@ -33,7 +33,11 @@ router.get('/', requireAuth, async (req, res) => {
         major: u.major,
         universityName: u.university_name,
         age: u.age,
+        schoolYear: u.school_year,
+        school_year: u.school_year,
         friendCode: u.friend_code,
+        intro: u.intro,
+        avatar: u.avatar,
       },
       pet: p
         ? {

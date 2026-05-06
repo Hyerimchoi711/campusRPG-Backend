@@ -30,4 +30,4 @@ Thumbs.db
 .vscode/
 .idea/
 
-campus_rpg.sqlite
+database/campus_rpg.sqlite

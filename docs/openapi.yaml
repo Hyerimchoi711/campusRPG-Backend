@@ -7,7 +7,7 @@ info:
     `backend/server.js`와 각 라우트 모듈의 실제 경로를 반영합니다.
 
 servers:
-  - url: http://localhost:5555
+  - url: http://localhost:8888
     description: 로컬 백엔드 서버
 
 tags:

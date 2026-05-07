@@ -40,8 +40,11 @@ function parseRegisterBody(body) {
     typeof body.university_name === 'string' ? body.university_name.trim() : '';
   const ageRaw = body.age;
   const age = typeof ageRaw === 'number' ? ageRaw : parseInt(String(ageRaw), 10);
+  const schoolYearRaw = body.school_year;
+  const school_year =
+    typeof schoolYearRaw === 'number' ? schoolYearRaw : parseInt(String(schoolYearRaw), 10);
 
-  return { email, password, nickname, student_id, major, university_name, age };
+  return { email, password, nickname, student_id, major, university_name, age, school_year };
 }
 
 /** 이메일 또는 학번으로 로그인 */
@@ -121,9 +124,8 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { email, password, nickname, student_id, major, university_name, age } = parseRegisterBody(
-    req.body || {}
-  );
+  const { email, password, nickname, student_id, major, university_name, age, school_year } =
+    parseRegisterBody(req.body || {});
 
   if (
     !email ||
@@ -132,7 +134,8 @@ router.post('/register', async (req, res) => {
     !student_id ||
     !major ||
     !university_name ||
-    !Number.isFinite(age)
+    !Number.isFinite(age) ||
+    !Number.isFinite(school_year)
   ) {
     return res.status(400).json({ error: '모든 필드를 입력해 주세요.' });
   }
@@ -144,6 +147,9 @@ router.post('/register', async (req, res) => {
   }
   if (!Number.isInteger(age) || age < 1 || age > 120) {
     return res.status(400).json({ error: '나이는 1~120 사이 정수여야 합니다.' });
+  }
+  if (!Number.isInteger(school_year) || school_year < 1 || school_year > 4) {
+    return res.status(400).json({ error: '학년은 1~4 사이 정수여야 합니다.' });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: '이메일 형식이 올바르지 않습니다.' });
@@ -158,9 +164,9 @@ router.post('/register', async (req, res) => {
 
     const [result] = await conn.query(
       `INSERT INTO users (
-        email, \`password\`, nickname, student_id, major, university_name, age, friend_code
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [email, passwordHash, nickname, student_id, major, university_name, age, friendCode]
+        email, \`password\`, nickname, student_id, major, university_name, age, school_year, friend_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, passwordHash, nickname, student_id, major, university_name, age, school_year, friendCode]
     );
 
     const userId = result.insertId;

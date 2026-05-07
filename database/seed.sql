@@ -1,17 +1,17 @@
 PRAGMA foreign_keys = ON;
 
 INSERT INTO users (
-  email, password, nickname, student_id, major, university_name, age,
-  coin, exp, friend_code
+  email, password, nickname, student_id, major, university_name, age, school_year, intro, avatar,
+  coin, exp, friend_code, kakao_id
 ) VALUES
-('user1@univ.ac.kr', 'password123', '김대학', '20210001', '컴퓨터공학과', '캠퍼스대학교', 22, 1200, 450, 'A1B2C3'),
-('user2@univ.ac.kr', 'password123', '이캠퍼스', '20220345', '경영학과', '캠퍼스대학교', 21, 800, 1200, 'D4E5F6'),
-('user3@univ.ac.kr', 'password123', '박코딩', '20191234', '소프트웨어학과', '캠퍼스대학교', 24, 3000, 2500, 'G7H8I9');
+('user1@univ.ac.kr', 'password123', '김대학', '20210001', '컴퓨터공학과', '캠퍼스대학교', 22, 2, '운동과 코딩을 좋아해요', '🐱', 1200, 450, 'A1B2C3', NULL),
+('user2@univ.ac.kr', 'password123', '이캠퍼스', '20220345', '경영학과', '캠퍼스대학교', 21, 3, '스터디 환영', '🐶', 800, 1200, 'D4E5F6', NULL),
+('user3@univ.ac.kr', 'password123', '박코딩', '20191234', '소프트웨어학과', '캠퍼스대학교', 24, 4, '백엔드 개발자', '🦊', 3000, 2500, 'G7H8I9', NULL);
 
-INSERT INTO pets (user_id, name, level, evolution_stage, animal_type) VALUES
-(1, '뚜이', 1, 0, 'egg'),
-(2, '불꽃드래곤', 12, 2, 'dragon'),
-(3, '아기슬라임', 5, 1, 'slime');
+INSERT INTO pets (user_id, name, level, evolution_stage, animal_type, lineage_type, last_evolved_at) VALUES
+(1, '부화중인 알', 1, 0, 'egg', NULL, NULL),
+(2, '파이로소어', 12, 1, '파이로소어', 'fire', datetime('now', '-3 days')),
+(3, '워티', 5, 1, '워티', 'water', datetime('now', '-1 day'));
 
 INSERT INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date) VALUES
 (1, 45, 55, 72, 80, 63, 30, date('now')),
@@ -42,10 +42,6 @@ INSERT INTO user_quests (user_id, quest_id, is_completed, assigned_date) VALUES
 (1, 5, 0, date('now')),
 (1, 6, 0, date('now', 'weekday 1', '-7 days'));
 
-INSERT INTO friends (user_id, friend_id, status) VALUES
-(1, 2, 'ACCEPTED'),
-(3, 1, 'PENDING');
-
 INSERT INTO items (name, description, price, image_url, icon_emoji, effect_type) VALUES
 ('경험치 부스터', '1시간 동안 획득 경험치 2배', 500, '/images/items/exp_boost.png', 'XP', 'EXP_BOOST'),
 ('스탯 초기화권', '모든 스탯을 초기화합니다', 1000, '/images/items/stat_reset.png', 'RST', 'STAT_RESET'),
@@ -58,28 +54,6 @@ INSERT INTO items (name, description, price, image_url, icon_emoji, effect_type)
 
 INSERT INTO user_inventory (user_id, item_id, quantity) VALUES
 (1, 8, 2);
-
-UPDATE pets
-SET name = '부화중인 알'
-WHERE user_id = 1;
-
-UPDATE pets
-SET animal_type = 'cool_cat',
-    lineage_type = 'cat',
-    name = '고양이 용사',
-    last_evolved_at = datetime('now', '-3 days')
-WHERE user_id = 2;
-
-UPDATE pets
-SET animal_type = 'dog',
-    lineage_type = 'dog',
-    name = '튼튼 강아지',
-    last_evolved_at = datetime('now', '-1 day')
-WHERE user_id = 3;
-
-
--- 2) 알 -> 유아기(첫 부화) 규칙
--- required_level / required_user_exp 값은 기존 기준(3,100) 유지
 INSERT INTO egg_hatch_rules (
   top_stat_type,
   required_level,
@@ -94,8 +68,7 @@ INSERT INTO egg_hatch_rules (
 ('focus',      3, 100, 'sprout',    '스푸티', 1, 1),
 ('social',     3, 100, 'cloud',     '클루',   1, 1),
 ('creativity', 3, 100, 'lightning', '라니',   1, 1);
--- 3) 유아기 -> 진화형 규칙
--- required_level / required_user_exp 값은 기존 기준(7,250) 유지
+
 INSERT INTO pet_evolution_rules (
   lineage_type,
   from_animal_type,
@@ -111,4 +84,10 @@ INSERT INTO pet_evolution_rules (
 ('sprout',    '스푸티', '스프라우트랫', 1, 7, 250, 0, 1),
 ('cloud',     '클루',   '클라우드 윙',  1, 7, 250, 0, 1),
 ('lightning', '라니',   '라이트닝 혼',  1, 7, 250, 0, 1);
-COMMIT;
+
+INSERT INTO friendships (user_id, friend_user_id, sort_order) VALUES
+(1, 2, 0),
+(2, 1, 0);
+
+INSERT INTO friend_requests (from_user_id, to_user_id, status) VALUES
+(3, 1, 'pending');

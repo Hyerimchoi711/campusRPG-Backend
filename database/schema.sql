@@ -1,6 +1,7 @@
 PRAGMA foreign_keys = OFF;
 
-DROP TABLE IF EXISTS friends;
+DROP TABLE IF EXISTS friend_requests;
+DROP TABLE IF EXISTS friendships;
 DROP TABLE IF EXISTS user_quests;
 DROP TABLE IF EXISTS quests;
 DROP TABLE IF EXISTS schedules;
@@ -24,6 +25,9 @@ CREATE TABLE users (
     major TEXT NOT NULL,
     university_name TEXT NOT NULL,
     age INTEGER NOT NULL,
+    school_year INTEGER NOT NULL DEFAULT 1 CHECK (school_year BETWEEN 1 AND 6),
+    intro TEXT NOT NULL DEFAULT '',
+    avatar TEXT NOT NULL DEFAULT '',
     kakao_id TEXT UNIQUE,
     coin INTEGER DEFAULT 0,
     exp INTEGER DEFAULT 0,
@@ -34,11 +38,13 @@ CREATE TABLE users (
 
 CREATE TABLE pets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL UNIQUE,
     name TEXT NOT NULL,
     level INTEGER DEFAULT 1,
     evolution_stage INTEGER DEFAULT 0,
     animal_type TEXT DEFAULT 'egg',
+    lineage_type TEXT,
+    last_evolved_at TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -83,17 +89,6 @@ CREATE TABLE user_quests (
     assigned_date TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE CASCADE
-);
-
-CREATE TABLE friends (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    friend_id INTEGER NOT NULL,
-    status TEXT DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACCEPTED')),
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE (user_id, friend_id)
 );
 
 CREATE TABLE items (
@@ -152,6 +147,33 @@ CREATE TABLE pet_evolution_history (
     FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
 );
 
+CREATE TABLE friendships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    friend_user_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (friend_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT chk_friendships_not_self CHECK (user_id <> friend_user_id),
+    UNIQUE (user_id, friend_user_id)
+);
+
+CREATE TABLE friend_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user_id INTEGER NOT NULL,
+    to_user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT chk_friend_requests_not_self CHECK (from_user_id <> to_user_id)
+);
+
+CREATE UNIQUE INDEX uk_friend_requests_pending_pair
+ON friend_requests(from_user_id, to_user_id)
+WHERE status = 'pending';
+
 CREATE TRIGGER trg_user_inventory_updated_at
 AFTER UPDATE ON user_inventory
 FOR EACH ROW
@@ -160,11 +182,6 @@ BEGIN
     SET updated_at = CURRENT_TIMESTAMP
     WHERE id = NEW.id;
 END;
-
-ALTER TABLE pets ADD COLUMN lineage_type TEXT;
-ALTER TABLE pets ADD COLUMN last_evolved_at TEXT;
-
-CREATE UNIQUE INDEX IF NOT EXISTS uk_pets_user_id ON pets(user_id);
 
 CREATE TRIGGER trg_pets_lineage_guard_insert
 BEFORE INSERT ON pets

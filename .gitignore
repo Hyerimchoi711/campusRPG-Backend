@@ -29,3 +29,5 @@ server/.env
 Thumbs.db
 .vscode/
 .idea/
+
+database/campus_rpg.sqlite

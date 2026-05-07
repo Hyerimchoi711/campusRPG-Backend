@@ -1,7 +1,26 @@
 const express = require('express');
 const pool = require('../db');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
+
+function ensureRequestedUserMatchesToken(req, res) {
+  const requestedUserId = req.method === 'GET' ? req.query.userId : req.body?.userId;
+  if (requestedUserId == null || requestedUserId === '') {
+    return true;
+  }
+
+  const userId = Number(requestedUserId);
+  if (!Number.isInteger(userId) || userId < 1) {
+    res.status(400).json({ error: 'INVALID_USER_ID' });
+    return false;
+  }
+  if (userId !== req.userId) {
+    res.status(403).json({ error: 'FORBIDDEN_USER' });
+    return false;
+  }
+  return true;
+}
 
 /** Vite 프록시용 — /api/health 는 5000(backend)으로 연결 (quest-api 8787과 분리) */
 router.get('/health', async (_req, res) => {
@@ -57,11 +76,11 @@ router.get('/items', async (_req, res) => {
 });
 
 /** 보유 코인 */
-router.get('/wallet', async (req, res) => {
-  const userId = Number(req.query.userId);
-  if (!Number.isInteger(userId) || userId < 1) {
-    return res.status(400).json({ error: 'INVALID_USER_ID' });
+router.get('/wallet', requireAuth, async (req, res) => {
+  if (!ensureRequestedUserMatchesToken(req, res)) {
+    return;
   }
+  const userId = req.userId;
   try {
     const [[row]] = await pool.query('SELECT coin FROM users WHERE id = ?', [userId]);
     if (!row) return res.status(404).json({ error: 'USER_NOT_FOUND' });
@@ -73,11 +92,11 @@ router.get('/wallet', async (req, res) => {
 });
 
 /** 유저 보관함 (조인 결과) */
-router.get('/inventory', async (req, res) => {
-  const userId = Number(req.query.userId);
-  if (!Number.isInteger(userId) || userId < 1) {
-    return res.status(400).json({ error: 'INVALID_USER_ID' });
+router.get('/inventory', requireAuth, async (req, res) => {
+  if (!ensureRequestedUserMatchesToken(req, res)) {
+    return;
   }
+  const userId = req.userId;
   try {
     const [[user]] = await pool.query('SELECT id FROM users WHERE id = ?', [userId]);
     if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
@@ -90,10 +109,13 @@ router.get('/inventory', async (req, res) => {
 });
 
 /** 코인 차감 후 보관함에 스택 */
-router.post('/inventory/purchase', async (req, res) => {
-  const userId = Number(req.body?.userId);
+router.post('/inventory/purchase', requireAuth, async (req, res) => {
+  if (!ensureRequestedUserMatchesToken(req, res)) {
+    return;
+  }
+  const userId = req.userId;
   const itemId = Number(req.body?.itemId);
-  if (!Number.isInteger(userId) || userId < 1 || !Number.isInteger(itemId) || itemId < 1) {
+  if (!Number.isInteger(itemId) || itemId < 1) {
     return res.status(400).json({ error: 'INVALID_BODY' });
   }
 

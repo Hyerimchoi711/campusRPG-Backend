@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const authRoutes = require('./routes/auth');
+const kakaoAuthRoutes = require('./routes/kakaoAuth');
 const meRoutes = require('./routes/me');
 const gameApi = require('./routes/gameApi');
 const friendsRoutes = require('./routes/friends');
@@ -18,6 +19,7 @@ app.use(express.json());
 
 // 인증·프로필 (JWT)
 app.use('/api/auth', authRoutes);
+app.use('/api/auth/kakao', kakaoAuthRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/friends', friendsRoutes);
 app.use('/api/users', usersRoutes);

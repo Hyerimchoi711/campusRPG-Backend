@@ -29,8 +29,6 @@ tags:
     description: 친구 요청 및 목록 관리
   - name: inventory
     description: 인벤토리 아이템 사용
-  - name: auth
-    description: 카카오 로그인 연동 초안
 
 paths:
   /api/profile:
@@ -585,78 +583,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/auth/kakao/start:
-    get:
-      tags: [auth]
-      summary: 카카오 로그인 시작
-      description: 카카오 로그인 페이지로 리다이렉트하기 위한 URL 또는 리다이렉트 응답을 제공합니다.
-      responses:
-        '200':
-          description: 카카오 로그인 시작 정보
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KakaoStartResponse'
-        '302':
-          description: 카카오 로그인 페이지로 리다이렉트
-
-  /api/auth/kakao/callback:
-    get:
-      tags: [auth]
-      summary: 카카오 로그인 콜백 처리
-      description: 인가 코드를 받아 카카오 토큰 교환 후 자체 JWT 발급 또는 회원 연동을 수행합니다.
-      parameters:
-        - in: query
-          name: code
-          required: true
-          description: 카카오 인가 코드
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 카카오 로그인 연동 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KakaoAuthResponse'
-        '400':
-          description: 인가 코드가 없거나 잘못되었습니다
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/auth/kakao:
-    post:
-      tags: [auth]
-      summary: 카카오 토큰 직접 연동
-      description: 카카오 액세스 토큰을 받아 검증 후 자체 JWT와 회원 정보를 반환하는 대안 방식입니다.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/KakaoTokenRequest'
-      responses:
-        '200':
-          description: 카카오 로그인 연동 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KakaoAuthResponse'
-        '400':
-          description: 요청 본문이 올바르지 않습니다
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: 카카오 토큰 검증 실패
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
 components:
   securitySchemes:
     bearerAuth:
@@ -1031,42 +957,3 @@ components:
             amount:
               type: integer
               example: 5
-
-    KakaoStartResponse:
-      type: object
-      properties:
-        authUrl:
-          type: string
-          example: https://kauth.kakao.com/oauth/authorize?client_id=...
-
-    KakaoTokenRequest:
-      type: object
-      required: [accessToken]
-      properties:
-        accessToken:
-          type: string
-          example: kakao-access-token
-
-    KakaoAuthResponse:
-      type: object
-      required: [ok, token, user]
-      properties:
-        ok:
-          type: boolean
-          example: true
-        token:
-          type: string
-          example: jwt-token
-        user:
-          type: object
-          properties:
-            id:
-              type: integer
-              example: 1
-            nickname:
-              type: string
-              example: 캠퍼스용사
-            email:
-              type: string
-              format: email
-              example: student@example.com

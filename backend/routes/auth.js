@@ -166,8 +166,8 @@ router.post('/register', async (req, res) => {
     const userId = result.insertId;
 
     await conn.query(
-      `INSERT INTO pets (user_id, name, level, evolution_stage, animal_type)
-       VALUES (?, '알이', 1, 0, 'egg')`,
+      `INSERT INTO pets (user_id, name, level, evolution_stage, animal_type, lineage_type)
+       VALUES (?, '부화중인 알', 1, 0, 'egg', NULL)`,
       [userId]
     );
     await conn.query(

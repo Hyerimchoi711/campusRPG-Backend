@@ -156,14 +156,14 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 ## 5. 카카오 연동 (명세 초안)
 
-플로우는 팀에서 **서버 리다이렉트** vs **클라 토큰 전달** 중 선택합니다.
+프론트엔드는 백엔드에서 받은 카카오 로그인 URL로 이동하고, redirect 페이지에서 추출한 인가 코드만 백엔드로 전달합니다.
+카카오 accessToken과 client_secret은 백엔드에서만 처리합니다.
 
 
 | 메서드  | 경로                         | 설명                              |
 | ---- | -------------------------- | ------------------------------- |
-| GET  | `/api/auth/kakao/start`    | 카카오 로그인 URL로 리다이렉트 (구현 방식에 따라)  |
-| GET  | `/api/auth/kakao/callback` | 인가 코드로 토큰 교환 후 자체 JWT/회원 연동     |
-| POST | `/api/auth/kakao`          | (대안) 카카오 액세스 토큰을 body로 받아 검증·연동 |
+| GET  | `/api/auth/kakao/start`    | 카카오 authorize URL 반환 |
+| POST | `/api/auth/kakao`          | 인가 코드와 redirectUri로 카카오 토큰 교환 후 자체 JWT 발급 |
 
 
 ---

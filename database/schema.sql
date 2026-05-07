@@ -24,6 +24,7 @@ CREATE TABLE users (
     major TEXT NOT NULL,
     university_name TEXT NOT NULL,
     age INTEGER NOT NULL,
+    kakao_id TEXT UNIQUE,
     coin INTEGER DEFAULT 0,
     exp INTEGER DEFAULT 0,
     friend_code TEXT UNIQUE NOT NULL,

@@ -16,7 +16,7 @@ tags:
   - name: health
     description: 서비스 및 데이터베이스 상태 확인
   - name: auth
-    description: 로그인 및 회원가입
+    description: 로그인, 회원가입 및 카카오 로그인
   - name: me
     description: 로그인한 사용자 정보 조회
   - name: shop
@@ -125,6 +125,73 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: 이메일 또는 학번 중복, 혹은 친구 코드 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/kakao/start:
+    get:
+      tags: [auth]
+      summary: 카카오 로그인 시작 URL 조회
+      description: |
+        백엔드가 KAKAO_REST_API_KEY와 KAKAO_REDIRECT_URI로 카카오 authorize URL을 생성해 반환합니다.
+        프론트엔드는 응답의 authUrl로 이동해 카카오 로그인을 시작합니다.
+      responses:
+        '200':
+          description: 카카오 로그인 시작 URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoStartResponse'
+        '500':
+          description: 카카오 로그인 환경 변수가 설정되지 않았습니다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/kakao:
+    post:
+      tags: [auth]
+      summary: 카카오 로그인
+      description: |
+        프론트엔드가 카카오 로그인 완료 후 redirect 페이지에서 추출한 인가 코드(code)를 전달합니다.
+        백엔드는 인가 코드와 redirectUri로 카카오 토큰을 교환하고, 카카오 사용자 정보를 확인한 뒤 자체 JWT를 발급합니다.
+        카카오 accessToken과 client_secret은 프론트엔드에 노출하지 않습니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KakaoAuthRequest'
+      responses:
+        '200':
+          description: 카카오 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoAuthResponse'
+        '400':
+          description: 인가 코드 또는 redirectUri가 누락되었거나 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 카카오 인증 또는 사용자 정보 조회에 실패했습니다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 카카오 사용자 생성 중 중복된 정보가 있습니다
           content:
             application/json:
               schema:
@@ -442,6 +509,34 @@ components:
           description: JWT 액세스 토큰
         user:
           $ref: '#/components/schemas/LoginUser'
+
+    KakaoStartResponse:
+      type: object
+      required: [authUrl]
+      properties:
+        authUrl:
+          type: string
+          format: uri
+          description: 프론트엔드가 이동할 카카오 authorize URL
+          example: https://kauth.kakao.com/oauth/authorize?client_id={KAKAO_REST_API_KEY}&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fkakao&response_type=code
+
+    KakaoAuthRequest:
+      type: object
+      required: [code, redirectUri]
+      properties:
+        code:
+          type: string
+          description: 카카오 redirect URL의 query string에서 추출한 인가 코드
+          example: kakao-authorization-code
+        redirectUri:
+          type: string
+          format: uri
+          description: 카카오 개발자 콘솔에 등록된 프론트엔드 redirect URI
+          example: http://localhost:5173/kakao
+
+    KakaoAuthResponse:
+      allOf:
+        - $ref: '#/components/schemas/LoginResponse'
 
     RegisterRequest:
       type: object

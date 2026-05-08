@@ -22,7 +22,7 @@ function ensureRequestedUserMatchesToken(req, res) {
   return true;
 }
 
-/** Vite 프록시용 — /api/health 는 5000(backend)으로 연결 (quest-api 8787과 분리) */
+/** Vite 프록시용 — /api/health 는 backend 통합 서버 상태를 확인 */
 router.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -30,8 +30,7 @@ router.get('/health', async (_req, res) => {
       ok: true,
       service: 'campus-rpg-backend',
       database: 'up',
-      geminiQuestApi:
-        '퀘스트 LLM 상태는 quest-api 실행 후 http://localhost:8787/api/health (또는 cd server && npm start)',
+      geminiQuestApi: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY ? 'configured' : 'missing',
     });
   } catch (e) {
     console.error('[gameApi] GET /health', e);

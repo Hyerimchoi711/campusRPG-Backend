@@ -7,10 +7,8 @@ info:
     이 문서는 아직 구현되지 않았거나, 추가 설계가 필요한 엔드포인트를 정리합니다.
 
 servers:
-  - url: http://localhost:5555
-    description: 메인 백엔드 예정 API 서버
-  - url: http://localhost:8787
-    description: 맞춤 퀘스트 LLM 예정 API 서버
+  - url: http://localhost:8888
+    description: 백엔드 통합 API 서버
 
 tags:
   - name: profile
@@ -21,10 +19,6 @@ tags:
     description: 스탯 및 피로도
   - name: schedules
     description: 일정 및 투두 관리
-  - name: quests
-    description: 기본 일일/주간 퀘스트
-  - name: quest-llm
-    description: LLM 기반 맞춤 퀘스트
   - name: friends
     description: 친구 요청 및 목록 관리
   - name: inventory
@@ -251,106 +245,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: 일정을 찾을 수 없습니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/quests:
-    get:
-      tags: [quests]
-      summary: 퀘스트 목록 조회
-      description: 일일 또는 주간 퀘스트와 진행 상태를 조회합니다.
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: type
-          required: false
-          description: 조회할 퀘스트 유형
-          schema:
-            type: string
-            enum: [DAILY, WEEKLY]
-            default: DAILY
-      responses:
-        "200":
-          description: 퀘스트 목록 조회 성공
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Quest"
-        "401":
-          description: 인증이 필요합니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/quests/{id}/complete:
-    post:
-      tags: [quests]
-      summary: 퀘스트 완료 처리
-      description: 퀘스트 완료 시 스탯, 코인, 피로도, 경험치를 반영합니다.
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          description: 퀘스트 ID
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        "200":
-          description: 퀘스트 완료 처리 성공
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/QuestCompleteResponse"
-        "401":
-          description: 인증이 필요합니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: 퀘스트를 찾을 수 없습니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/quests/generate:
-    post:
-      tags: [quest-llm]
-      summary: 맞춤 퀘스트 생성
-      description: 사용자 상황이나 프롬프트를 바탕으로 LLM 기반 퀘스트를 생성합니다.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/QuestGenerateRequest"
-      responses:
-        "200":
-          description: 맞춤 퀘스트 생성 성공
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/QuestGenerateResponse"
-        "400":
-          description: 요청 본문이 올바르지 않습니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: 퀘스트 생성 실패
           content:
             application/json:
               schema:
@@ -656,77 +550,6 @@ components:
           example: 15
         schedule:
           $ref: "#/components/schemas/Schedule"
-
-    Quest:
-      type: object
-      required: [id, title, type, completed]
-      properties:
-        id:
-          type: integer
-          example: 201
-        title:
-          type: string
-          example: 오늘 강의 복습하기
-        description:
-          type: string
-          nullable: true
-          example: 전공 강의 노트를 30분 이상 다시 읽기
-        type:
-          type: string
-          enum: [DAILY, WEEKLY]
-          example: DAILY
-        completed:
-          type: boolean
-          example: false
-        progress:
-          type: integer
-          example: 0
-        coinReward:
-          type: integer
-          example: 20
-        expReward:
-          type: integer
-          example: 10
-
-    QuestCompleteResponse:
-      type: object
-      required: [ok, rewards]
-      properties:
-        ok:
-          type: boolean
-          example: true
-        rewards:
-          type: object
-          required: [coin, exp, fatigue]
-          properties:
-            coin:
-              type: integer
-              example: 20
-            exp:
-              type: integer
-              example: 10
-            fatigue:
-              type: integer
-              example: 1
-
-    QuestGenerateRequest:
-      type: object
-      properties:
-        prompt:
-          type: string
-          example: 오늘 시험 공부 계획에 맞는 퀘스트를 3개 만들어줘
-        context:
-          type: object
-          additionalProperties: true
-
-    QuestGenerateResponse:
-      type: object
-      required: [quests]
-      properties:
-        quests:
-          type: array
-          items:
-            $ref: "#/components/schemas/Quest"
 
     Friend:
       type: object

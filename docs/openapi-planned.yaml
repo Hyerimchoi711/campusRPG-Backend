@@ -17,8 +17,6 @@ tags:
     description: 홈 화면 및 펫/배경 정보
   - name: stats
     description: 스탯 및 피로도
-  - name: friends
-    description: 친구 요청 및 목록 관리
   - name: inventory
     description: 인벤토리 아이템 사용
 
@@ -126,78 +124,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: 스탯 정보를 찾을 수 없습니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/friends/request:
-    post:
-      tags: [friends]
-      summary: 친구 요청 보내기
-      description: 친구 코드를 이용해 다른 사용자에게 친구 요청을 보냅니다.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/FriendRequestCreateRequest"
-      responses:
-        "200":
-          description: 친구 요청 성공
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ActionMessageResponse"
-        "400":
-          description: 요청 본문이 올바르지 않습니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: 인증이 필요합니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: 친구 코드를 찾을 수 없습니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/friends/remove:
-    post:
-      tags: [friends]
-      summary: 친구 삭제
-      description: 친구 관계를 해제합니다.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/FriendRemoveRequest"
-      responses:
-        "200":
-          description: 친구 삭제 성공
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ActionMessageResponse"
-        "400":
-          description: 요청 본문이 올바르지 않습니다
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: 인증이 필요합니다
           content:
             application/json:
               schema:
@@ -370,90 +296,6 @@ components:
           type: string
           format: date
           example: 2026-04-13
-
-    Friend:
-      type: object
-      required: [id, nickname]
-      properties:
-        id:
-          type: integer
-          example: 2
-        nickname:
-          type: string
-          example: 팀플장인
-        level:
-          type: integer
-          nullable: true
-          example: 5
-        evolutionStage:
-          type: integer
-          nullable: true
-          example: 1
-        universityName:
-          type: string
-          nullable: true
-          example: 캠퍼스대학교
-        grade:
-          type: integer
-          nullable: true
-          example: 2
-        bio:
-          type: string
-          nullable: true
-          example: 시험기간엔 연락이 잘 안 돼요
-        petImageUrl:
-          type: string
-          nullable: true
-          example: /assets/pets/cat-stage1.png
-
-    FriendRequest:
-      type: object
-      required: [id, fromUserId, nickname, friendCode]
-      properties:
-        id:
-          type: integer
-          example: 11
-        fromUserId:
-          type: integer
-          example: 2
-        nickname:
-          type: string
-          example: 팀플장인
-        friendCode:
-          type: string
-          example: AB23CD
-        requestedAt:
-          type: string
-          format: date-time
-          example: 2026-04-13T09:00:00Z
-
-    FriendRequestCreateRequest:
-      type: object
-      required: [friendCode]
-      properties:
-        friendCode:
-          type: string
-          example: AB23CD
-
-    FriendRemoveRequest:
-      type: object
-      required: [friendUserId]
-      properties:
-        friendUserId:
-          type: integer
-          minimum: 1
-          example: 2
-
-    ActionMessageResponse:
-      type: object
-      required: [ok, message]
-      properties:
-        ok:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: 처리되었습니다
 
     InventoryUseRequest:
       type: object

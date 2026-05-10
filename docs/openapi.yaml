@@ -25,6 +25,8 @@ tags:
     description: 사용자 코인 잔액
   - name: inventory
     description: 인벤토리 조회 및 구매
+  - name: schedules
+    description: 일정 및 투두 관리
   - name: quests
     description: 일일/주간 퀘스트 조회 및 완료 처리
   - name: quest-llm
@@ -415,6 +417,153 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorCodeResponse"
+
+  /api/schedules:
+    get:
+      tags: [schedules]
+      security:
+        - bearerAuth: []
+      summary: 일정 목록 조회
+      description: 인증된 사용자의 일정 목록을 조회합니다. date로 단일 날짜를 조회하거나 from/to로 기간을 조회할 수 있습니다.
+      parameters:
+        - in: query
+          name: date
+          required: false
+          description: YYYY-MM-DD 형식의 단일 조회 날짜
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: from
+          required: false
+          description: YYYY-MM-DD 형식의 기간 시작일
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          required: false
+          description: YYYY-MM-DD 형식의 기간 종료일
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: 일정 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Schedule"
+        "400":
+          description: 날짜 조회 조건이 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Bearer 토큰이 없거나 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 일정 목록 조회 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [schedules]
+      security:
+        - bearerAuth: []
+      summary: 일정 생성
+      description: 인증된 사용자의 일정을 생성합니다. title은 schedules.content에, scheduledDate는 schedules.target_date에 저장됩니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleRequest"
+      responses:
+        "201":
+          description: 일정 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleResponse"
+        "400":
+          description: 요청 본문이 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Bearer 토큰이 없거나 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 일정 생성 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/schedules/{id}/complete:
+    post:
+      tags: [schedules]
+      security:
+        - bearerAuth: []
+      summary: 일정 완료 처리
+      description: 일정을 완료 상태로 바꾸고 expReward만큼 인증된 사용자의 경험치를 증가시킵니다.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 일정 ID
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: 일정 완료 처리 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleCompleteResponse"
+        "400":
+          description: 일정 ID가 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Bearer 토큰이 없거나 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 일정을 찾을 수 없습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 이미 완료된 일정입니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 일정 완료 처리 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/quests:
     get:
@@ -1397,6 +1546,88 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/InventoryItem"
+
+    Schedule:
+      type: object
+      required: [id, title, scheduledDate, completed, expReward]
+      properties:
+        id:
+          type: integer
+          example: 101
+        title:
+          type: string
+          description: schedules.content에서 매핑되는 API 필드입니다.
+          example: 운영체제 과제 제출
+        description:
+          type: string
+          nullable: true
+          example: null
+        scheduledDate:
+          type: string
+          format: date
+          description: schedules.target_date에서 매핑되는 API 필드입니다.
+          example: 2026-04-14
+        completed:
+          type: boolean
+          description: schedules.is_completed에서 매핑되는 API 필드입니다.
+          example: false
+        expReward:
+          type: integer
+          description: schedules.reward_exp에서 매핑되는 API 필드입니다.
+          example: 50
+
+    CreateScheduleRequest:
+      type: object
+      required: [title, scheduledDate]
+      properties:
+        title:
+          type: string
+          description: schedules.content에 저장됩니다.
+          example: 운영체제 과제 제출
+        content:
+          type: string
+          description: title 대신 사용할 수 있는 대체 필드입니다.
+          example: 운영체제 과제 제출
+        scheduledDate:
+          type: string
+          format: date
+          description: schedules.target_date에 저장됩니다.
+          example: 2026-04-14
+        targetDate:
+          type: string
+          format: date
+          description: scheduledDate 대신 사용할 수 있는 대체 필드입니다.
+          example: 2026-04-14
+        target_date:
+          type: string
+          format: date
+          description: scheduledDate 대신 사용할 수 있는 대체 필드입니다.
+          example: 2026-04-14
+        expReward:
+          type: integer
+          minimum: 0
+          default: 50
+          example: 50
+
+    ScheduleResponse:
+      type: object
+      required: [schedule]
+      properties:
+        schedule:
+          $ref: "#/components/schemas/Schedule"
+
+    ScheduleCompleteResponse:
+      type: object
+      required: [ok, expGained, schedule]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        expGained:
+          type: integer
+          example: 50
+        schedule:
+          $ref: "#/components/schemas/Schedule"
 
     QuestGenerateRequest:
       type: object

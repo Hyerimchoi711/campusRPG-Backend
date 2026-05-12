@@ -19,6 +19,10 @@ tags:
     description: 로그인, 회원가입 및 카카오 로그인
   - name: me
     description: 로그인한 사용자 정보 조회
+  - name: profile
+    description: 로그인한 사용자의 프로필 및 한줄소개
+  - name: stats
+    description: 사용자 스탯 및 피로도
   - name: shop
     description: 상점 아이템 목록
   - name: wallet
@@ -246,6 +250,117 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/profile:
+    get:
+      tags: [profile]
+      summary: 프로필 조회
+      description: 로그인한 사용자의 닉네임, 학번, 학과, 대학, 나이, 학년, 한줄소개, 아바타 정보를 반환합니다.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "401":
+          description: Bearer 토큰이 없거나 유효하지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 사용자를 찾을 수 없습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/profile/bio:
+    post:
+      tags: [profile]
+      summary: 한줄소개 수정
+      description: 로그인한 사용자의 한줄소개를 수정합니다. 한줄소개는 최대 200자까지 입력할 수 있습니다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BioUpdateRequest"
+      responses:
+        "200":
+          description: 한줄소개 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileBioResponse"
+        "400":
+          description: 요청 본문이 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Bearer 토큰이 없거나 유효하지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 사용자를 찾을 수 없습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/stats:
+    get:
+      tags: [stats]
+      summary: 스탯 조회
+      description: 로그인한 사용자의 5종 스탯과 일일 피로도를 조회합니다.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 스탯 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+        "401":
+          description: Bearer 토큰이 없거나 유효하지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 스탯 정보를 찾을 수 없습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/items:
     get:
       tags: [shop]
@@ -413,6 +528,51 @@ paths:
                 $ref: "#/components/schemas/ErrorCodeResponse"
         "500":
           description: 구매 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorCodeResponse"
+
+  /api/inventory/use:
+    post:
+      tags: [inventory]
+      security:
+        - bearerAuth: []
+      summary: 아이템 사용
+      description: 인벤토리 아이템 수량을 1개 차감하고 `effectType`에 따라 즉시 적용 가능한 효과를 스탯에 반영합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryUseRequest"
+      responses:
+        "200":
+          description: 아이템 사용 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryUseResponse"
+        "400":
+          description: 요청 본문이 올바르지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorCodeResponse"
+        "401":
+          description: Bearer 토큰이 없거나 유효하지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorCodeResponse"
+        "404":
+          description: 아이템, 인벤토리 항목 또는 스탯 정보를 찾을 수 없습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorCodeResponse"
+        "500":
+          description: 아이템 사용 실패
           content:
             application/json:
               schema:
@@ -1442,6 +1602,116 @@ components:
         pet:
           $ref: "#/components/schemas/Pet"
 
+    ProfileResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/ProfileUser"
+
+    ProfileUser:
+      type: object
+      required: [id, nickname, studentId, major, universityName, age]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nickname:
+          type: string
+          example: 캠퍼스용사
+        studentId:
+          type: string
+          example: "20201234"
+        major:
+          type: string
+          example: 컴퓨터공학과
+        universityName:
+          type: string
+          example: 캠퍼스대학교
+        age:
+          type: integer
+          example: 24
+        grade:
+          type: integer
+          nullable: true
+          example: 3
+        bio:
+          type: string
+          nullable: true
+          example: 오늘도 과제를 깨는 중
+        schoolYear:
+          type: integer
+          example: 3
+        school_year:
+          type: integer
+          example: 3
+        intro:
+          type: string
+          example: 오늘도 과제를 깨는 중
+        avatar:
+          type: string
+          example: "🧙"
+
+    BioUpdateRequest:
+      type: object
+      required: [bio]
+      properties:
+        bio:
+          type: string
+          maxLength: 200
+          example: 오늘도 과제를 깨는 중
+
+    ProfileBioResponse:
+      type: object
+      required: [ok, bio]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        bio:
+          type: string
+          example: 오늘도 과제를 깨는 중
+
+    StatsResponse:
+      type: object
+      required:
+        - health
+        - social
+        - diligence
+        - focus
+        - creativity
+        - dailyFatigue
+      properties:
+        health:
+          type: integer
+          example: 10
+        social:
+          type: integer
+          example: 8
+        diligence:
+          type: integer
+          example: 14
+        focus:
+          type: integer
+          example: 12
+        creativity:
+          type: integer
+          example: 6
+        dailyFatigue:
+          type: integer
+          example: 3
+        daily_fatigue:
+          type: integer
+          example: 3
+        lastUpdatedDate:
+          type: string
+          format: date
+          example: 2026-04-13
+        last_updated_date:
+          type: string
+          format: date
+          example: 2026-04-13
+
     Item:
       type: object
       required: [id, name, description, price, imageUrl, iconEmoji, effectType]
@@ -1520,6 +1790,40 @@ components:
         coin:
           type: integer
           example: 150
+
+    InventoryUseRequest:
+      type: object
+      required: [itemId]
+      properties:
+        itemId:
+          type: integer
+          minimum: 1
+          example: 3
+
+    InventoryUseResponse:
+      type: object
+      required: [ok, remainingQuantity]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        remainingQuantity:
+          type: integer
+          example: 1
+        appliedEffect:
+          type: object
+          nullable: true
+          properties:
+            effectType:
+              type: string
+              example: RANDOM_STAT
+            statType:
+              type: string
+              nullable: true
+              example: focus
+            amount:
+              type: integer
+              example: 2
 
     PurchaseRequest:
       type: object

@@ -4,7 +4,7 @@ function requireAuth(req, res, next) {
   const raw = req.headers.authorization || '';
   const m = raw.match(/^Bearer\s+(.+)$/i);
   if (!m) {
-    return res.status(401).json({ error: '로그인이 필요합니다.', message: 'Authorization Bearer 토큰이 필요합니다.' });
+    return res.status(401).json({ error: '로그인이 필요합니다.' });
   }
   try {
     const secret = process.env.JWT_SECRET || 'dev-insecure';
@@ -15,8 +15,9 @@ function requireAuth(req, res, next) {
     }
     req.userId = Number(userId);
     next();
-  } catch (err) {
-    return res.status(401).json({ error: '로그인이 만료되었거나 유효하지 않습니다.', message: err?.message || 'JWT 검증 실패' });
+
+  } catch {
+    return res.status(401).json({ error: '로그인이 만료되었거나 유효하지 않습니다.' });
   }
 }
 

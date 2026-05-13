@@ -82,8 +82,8 @@ router.get('/wallet', requireAuth, async (req, res) => {
   const userId = req.userId;
   try {
     const [[row]] = await pool.query('SELECT coin FROM users WHERE id = ?', [userId]);
-    if (!row) return res.status(404).json({ error: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.' });
-    res.json({ coin: Number(row.coin) });
+    if (!row) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    res.json({ coin: row.coin });
   } catch (e) {
     console.error('[gameApi] GET /wallet', e);
     res.status(500).json({ error: 'WALLET_FETCH_FAILED' });

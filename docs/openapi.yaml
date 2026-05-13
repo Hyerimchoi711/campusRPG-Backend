@@ -225,7 +225,9 @@ paths:
     get:
       tags: [me]
       summary: 내 정보 조회
-      description: 인증된 사용자의 기본 프로필, **`user.stats`**(스탯·피로도), 첫 번째 펫 정보를 반환합니다.
+      description: |
+        인증된 사용자의 기본 프로필, **`user.stats`**, 첫 번째 펫 정보를 반환합니다.
+        `user.level`·`user.maxStatPerStat`는 첫 펫 레벨 기준이며, `user.stats.dailyFatigue`는 **KST 당일 퀘스트 스탯 가산 합(0~70)** 입니다(`stats.quest_daily_stat_sum`).
       security:
         - bearerAuth: []
       responses:
@@ -260,9 +262,19 @@ paths:
       summary: 오늘·이번 주 퀘스트 롤 조회
       description: |
         KST 기준 `rollDate`의 일일 5슬롯·`weekId`(해당 주 월요일)의 주간 3슬롯을 서버에서 조합합니다.
-        행이 없으면 지연 생성합니다. `questSource`는 `default`(풀 롤) 또는 LLM 전용 배정과 구분할 때 사용합니다.
+        `rollWeek`는 `weekId`와 동일한 별칭입니다. 기본적으로 `GET /api/me`와 동일 형태의 `user`·`pet`를 포함해 한 번에 게임 스냅샷을 갱신할 수 있습니다.
+        `includeMe=0` 또는 `false`이면 퀘스트 롤만 반환합니다.
       security:
         - bearerAuth: []
+      parameters:
+        - name: includeMe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["0", "1", "true", "false"]
+          description: |
+            `0`/`false`가 아니면(기본) `user`·`pet` 포함. `0` 또는 `false`면 생략.
       responses:
         "200":
           description: 일일 5 + 주간 3
@@ -297,7 +309,7 @@ paths:
               $ref: "#/components/schemas/QuestSlotPatchRequest"
       responses:
         "200":
-          description: 갱신 성공. 첫 완료 시에만 rewards가 채워질 수 있습니다.
+          description: 갱신 성공. DB 반영 후 현재 롤(`daily`·`weekly`)·`rollDate`·`weekId`·`rollWeek` 및 `GET /api/me`와 동일한 `user`·`pet`를 함께 반환합니다. 첫 완료 시에만 rewards가 채워질 수 있습니다.
           content:
             application/json:
               schema:
@@ -341,7 +353,7 @@ paths:
               $ref: "#/components/schemas/QuestSlotPatchRequest"
       responses:
         "200":
-          description: 갱신 성공
+          description: 갱신 성공. DB 반영 후 현재 롤·`user`·`pet`를 포함합니다(일일 PATCH와 동일).
           content:
             application/json:
               schema:
@@ -453,7 +465,8 @@ paths:
     get:
       tags: [stats]
       summary: 스탯 조회
-      description: 로그인한 사용자의 5종 스탯과 일일 피로도를 조회합니다.
+      description: |
+        로그인한 사용자의 5종 스탯, `daily_fatigue`(아이템 등 피로도), `quest_daily_stat_sum`(`questDailyStatSum`)을 조회합니다.
       security:
         - bearerAuth: []
       responses:
@@ -1657,6 +1670,15 @@ components:
         exp:
           type: integer
           example: 30
+        level:
+          type: integer
+          minimum: 1
+          description: 캐릭터 레벨(첫 번째 펫 `pets.level`과 동일)
+          example: 3
+        maxStatPerStat:
+          type: integer
+          description: 스탯당 상한 `100 + 100 * floor((level-1)/5)`
+          example: 100
         studentId:
           type: string
           example: "20201234"
@@ -1703,6 +1725,9 @@ components:
           type: integer
         dailyFatigue:
           type: integer
+          description: |
+            `GET /api/me`의 `user.stats`에서만 사용합니다. **KST 당일 퀘스트로 가산된 스탯 포인트 합**(0~70, DB `quest_daily_stat_sum`).
+            `GET /api/stats`는 별도 스키마(`StatsResponse`)로 `dailyFatigue`는 DB `daily_fatigue`(피로도)입니다.
         lastUpdatedDate:
           type: string
           nullable: true
@@ -1789,7 +1814,7 @@ components:
 
     QuestCurrentResponse:
       type: object
-      required: [rollDate, weekId, daily, weekly]
+      required: [rollDate, weekId, rollWeek, daily, weekly, user, pet]
       properties:
         rollDate:
           type: string
@@ -1798,6 +1823,9 @@ components:
         weekId:
           type: string
           description: KST 기준 해당 주 월요일 YYYY-MM-DD
+        rollWeek:
+          type: string
+          description: weekId와 동일(프론트 별칭)
         daily:
           type: array
           minItems: 5
@@ -1810,6 +1838,14 @@ components:
           maxItems: 3
           items:
             $ref: "#/components/schemas/QuestRollAssignment"
+        user:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/MeUser"
+        pet:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Pet"
 
     QuestSlotPatchRequest:
       type: object
@@ -1823,10 +1859,50 @@ components:
 
     QuestSlotPatchResponse:
       type: object
-      required: [ok]
+      required:
+        - ok
+        - levelUp
+        - evolved
+        - rollDate
+        - weekId
+        - rollWeek
+        - daily
+        - weekly
+        - user
+        - pet
       properties:
         ok:
           type: boolean
+        levelUp:
+          type: boolean
+          description: 이번 보상 적용으로 펫 레벨이 1 이상 올랐는지
+        evolved:
+          type: boolean
+          description: 이번 트랜잭션에서 펫 진화가 발생했는지
+        rollDate:
+          type: string
+          format: date
+        weekId:
+          type: string
+        rollWeek:
+          type: string
+          description: weekId와 동일
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestRollAssignment"
+        weekly:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestRollAssignment"
+        user:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/MeUser"
+        pet:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Pet"
         rewards:
           type: object
           nullable: true
@@ -1842,6 +1918,7 @@ components:
               type: integer
             fatigue:
               type: integer
+              description: 레거시 필드. 퀘스트 경로에서는 0으로 고정됩니다.
 
     AnnouncementListItem:
       type: object
@@ -2091,6 +2168,13 @@ components:
         daily_fatigue:
           type: integer
           example: 3
+        questDailyStatSum:
+          type: integer
+          description: KST 당일 퀘스트로 가산된 스탯 포인트 합(0~70)
+          example: 0
+        quest_daily_stat_sum:
+          type: integer
+          example: 0
         lastUpdatedDate:
           type: string
           format: date
@@ -2380,11 +2464,15 @@ components:
 
     QuestCompleteResponse:
       type: object
-      required: [ok, rewards]
+      required: [ok, rewards, levelUp, evolved]
       properties:
         ok:
           type: boolean
           example: true
+        levelUp:
+          type: boolean
+        evolved:
+          type: boolean
         rewards:
           type: object
           required: [coin, exp, fatigue]
@@ -2395,9 +2483,15 @@ components:
             exp:
               type: integer
               example: 0
+            statType:
+              type: string
+              nullable: true
+            statAmount:
+              type: integer
             fatigue:
               type: integer
-              example: 1
+              description: 레거시 필드. 퀘스트 경로에서는 0으로 고정됩니다.
+              example: 0
 
     InsufficientFundsResponse:
       type: object

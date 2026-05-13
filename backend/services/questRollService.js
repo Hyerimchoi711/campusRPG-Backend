@@ -1,30 +1,10 @@
 'use strict';
 
+const { kstYmd, kstMondayYmd } = require('./kstUtils');
+const { applyQuestReward, ensureStatsRow } = require('./questRewardEngine');
+const { getMeUserAndPet } = require('./mePayloadService');
+
 const ALLOWED_STATS = ['health', 'social', 'diligence', 'focus', 'creativity'];
-const DEFAULT_FATIGUE_REWARD = 1;
-
-function kstYmd(d = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d);
-}
-
-/** KST 달력 기준 해당 주의 월요일 YYYY-MM-DD */
-function kstMondayYmd(todayYmd) {
-  const d = new Date(`${todayYmd}T12:00:00+09:00`);
-  const dow = d.getUTCDay();
-  const offset = (dow + 6) % 7;
-  const monMs = d.getTime() - offset * 86400000;
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(monMs));
-}
 
 function pickRandom(arr) {
   if (!arr.length) return null;
@@ -92,14 +72,6 @@ function mapRollRow(r) {
     rewardGrantedThisSlot: Boolean(r.reward_granted_this_slot),
     questSource: r.quest_source || 'default',
   };
-}
-
-async function ensureStatsRow(conn, userId) {
-  await conn.query(
-    `INSERT OR IGNORE INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date)
-     VALUES (?, 0, 0, 0, 0, 0, 0, date('now'))`,
-    [userId]
-  );
 }
 
 async function fetchTemplatePool(conn) {
@@ -230,44 +202,6 @@ async function getCurrentQuestSet(db, userId) {
   }
 }
 
-async function applyRewardInConn(conn, userId, quest) {
-  await ensureStatsRow(conn, userId);
-  const exp = Number(quest.reward_exp) || 0;
-  const coin = Number(quest.reward_coin) || 0;
-  const statType = String(quest.reward_stat_type || '').trim();
-  const statAmount = Number(quest.reward_stat_amount) || 0;
-  const fatigue = DEFAULT_FATIGUE_REWARD;
-
-  await conn.query('UPDATE users SET exp = exp + ?, coin = coin + ? WHERE id = ?', [exp, coin, userId]);
-
-    if (ALLOWED_STATS.includes(statType) && statAmount > 0) {
-    await conn.query(
-      `UPDATE stats
-       SET ${statType} = ${statType} + ?,
-           daily_fatigue = daily_fatigue + ?,
-           last_updated_date = date('now')
-       WHERE user_id = ?`,
-      [statAmount, fatigue, userId]
-    );
-  } else {
-    await conn.query(
-      `UPDATE stats
-       SET daily_fatigue = daily_fatigue + ?,
-           last_updated_date = date('now')
-       WHERE user_id = ?`,
-      [fatigue, userId]
-    );
-  }
-
-  return {
-    exp,
-    coin,
-    statType: ALLOWED_STATS.includes(statType) ? statType : null,
-    statAmount: ALLOWED_STATS.includes(statType) ? statAmount : 0,
-    fatigue,
-  };
-}
-
 async function patchDailySlot(db, userId, slot, completed) {
   if (!Number.isInteger(slot) || slot < 0 || slot > 4) {
     return { status: 400, body: { error: 'INVALID_SLOT', message: '일일 슬롯은 0~4입니다.' } };
@@ -292,12 +226,23 @@ async function patchDailySlot(db, userId, slot, completed) {
     }
     const row = rows[0];
     let rewards = null;
+    let levelUp = false;
+    let evolved = false;
 
     if (completed) {
       if (!row.completed) {
         await conn.query('UPDATE user_daily_quest_roll SET completed = 1 WHERE id = ?', [row.id]);
         if (!row.reward_granted_this_slot) {
-          rewards = await applyRewardInConn(conn, userId, row);
+          const r = await applyQuestReward(conn, userId, row);
+          levelUp = r.levelUp;
+          evolved = r.evolved;
+          rewards = {
+            exp: r.exp,
+            coin: r.coin,
+            statType: r.statType,
+            statAmount: r.statAmount,
+            fatigue: r.fatigue,
+          };
           await conn.query('UPDATE user_daily_quest_roll SET reward_granted_this_slot = 1 WHERE id = ?', [row.id]);
         }
       }
@@ -306,7 +251,24 @@ async function patchDailySlot(db, userId, slot, completed) {
     }
 
     await conn.commit();
-    return { status: 200, body: { ok: true, rewards } };
+    const fresh = await getCurrentQuestSet(db, userId);
+    const snap = await getMeUserAndPet(db, userId);
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        rewards,
+        levelUp,
+        evolved,
+        rollDate: fresh.rollDate,
+        weekId: fresh.weekId,
+        rollWeek: fresh.weekId,
+        daily: fresh.daily,
+        weekly: fresh.weekly,
+        user: snap ? snap.user : null,
+        pet: snap ? snap.pet : null,
+      },
+    };
   } catch (e) {
     await conn.rollback();
     throw e;
@@ -340,12 +302,23 @@ async function patchWeeklySlot(db, userId, slot, completed) {
     }
     const row = rows[0];
     let rewards = null;
+    let levelUp = false;
+    let evolved = false;
 
     if (completed) {
       if (!row.completed) {
         await conn.query('UPDATE user_weekly_quest_roll SET completed = 1 WHERE id = ?', [row.id]);
         if (!row.reward_granted_this_slot) {
-          rewards = await applyRewardInConn(conn, userId, row);
+          const r = await applyQuestReward(conn, userId, row);
+          levelUp = r.levelUp;
+          evolved = r.evolved;
+          rewards = {
+            exp: r.exp,
+            coin: r.coin,
+            statType: r.statType,
+            statAmount: r.statAmount,
+            fatigue: r.fatigue,
+          };
           await conn.query('UPDATE user_weekly_quest_roll SET reward_granted_this_slot = 1 WHERE id = ?', [row.id]);
         }
       }
@@ -354,7 +327,24 @@ async function patchWeeklySlot(db, userId, slot, completed) {
     }
 
     await conn.commit();
-    return { status: 200, body: { ok: true, rewards } };
+    const fresh = await getCurrentQuestSet(db, userId);
+    const snap = await getMeUserAndPet(db, userId);
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        rewards,
+        levelUp,
+        evolved,
+        rollDate: fresh.rollDate,
+        weekId: fresh.weekId,
+        rollWeek: fresh.weekId,
+        daily: fresh.daily,
+        weekly: fresh.weekly,
+        user: snap ? snap.user : null,
+        pet: snap ? snap.pet : null,
+      },
+    };
   } catch (e) {
     await conn.rollback();
     throw e;

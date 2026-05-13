@@ -16,6 +16,16 @@ const dbPromise = open({
   driver: sqlite3.Database,
 }).then(async db => {
   await db.exec('PRAGMA foreign_keys = ON');
+  try {
+    await db.exec(
+      'ALTER TABLE stats ADD COLUMN quest_daily_stat_sum INTEGER NOT NULL DEFAULT 0'
+    );
+  } catch (e) {
+    const msg = String(e && e.message);
+    if (!msg.includes('duplicate column')) {
+      console.warn('[db] stats.quest_daily_stat_sum migration:', e.message);
+    }
+  }
   console.log(`Successfully connected to SQLite database: ${dbPath}`);
   return db;
 });

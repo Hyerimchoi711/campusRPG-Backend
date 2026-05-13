@@ -164,8 +164,8 @@ async function findOrCreateKakaoUser(kakaoUser) {
 
     const [result] = await conn.query(
       `INSERT INTO users (
-        email, \`password\`, nickname, student_id, major, university_name, age, friend_code, kakao_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        email, \`password\`, nickname, student_id, major, university_name, age, friend_code, kakao_id, coin, exp
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
       [email, password, nickname, studentId, '미입력', '미입력', 1, friendCode, kakaoId]
     );
     const userId = result.insertId;
@@ -176,8 +176,8 @@ async function findOrCreateKakaoUser(kakaoUser) {
       [userId]
     );
     await conn.query(
-      `INSERT INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date)
-       VALUES (?, 0, 0, 0, 0, 0, 0, date('now'))`,
+      `INSERT INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, quest_daily_stat_sum, last_updated_date)
+       VALUES (?, 0, 0, 0, 0, 0, 0, 0, NULL)`,
       [userId]
     );
 

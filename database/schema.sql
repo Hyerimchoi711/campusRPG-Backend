@@ -61,6 +61,7 @@ CREATE TABLE stats (
     focus INTEGER DEFAULT 0,
     creativity INTEGER DEFAULT 0,
     daily_fatigue INTEGER DEFAULT 0,
+    quest_daily_stat_sum INTEGER NOT NULL DEFAULT 0,
     last_updated_date TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

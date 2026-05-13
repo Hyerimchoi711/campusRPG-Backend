@@ -5,8 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 const ALLOWED_TYPES = new Set(['DAILY', 'WEEKLY']);
-const ALLOWED_STATS = new Set(['health', 'social', 'diligence', 'focus', 'creativity']);
-const DEFAULT_FATIGUE_REWARD = 1;
+const { applyQuestReward, ensureStatsRow } = require('../services/questRewardEngine');
 
 /** @deprecated Prefer GET /api/me/quests/current + PATCH /api/me/quests/daily|weekly */
 function toApiQuest(row) {
@@ -90,48 +89,22 @@ router.post('/quests/:id/complete', requireAuth, async (req, res) => {
       return res.status(409).json({ error: 'QUEST_ALREADY_COMPLETED' });
     }
 
-    const coin = Number(quest.reward_coin) || 0;
-    const exp = Number(quest.reward_exp) || 0;
-    const fatigue = DEFAULT_FATIGUE_REWARD;
-    const statType = String(quest.reward_stat_type || '').trim();
-    const statAmount = Number(quest.reward_stat_amount) || 0;
-
     await conn.query('UPDATE user_quests SET is_completed = 1 WHERE id = ?', [quest.user_quest_id]);
-    await conn.query('UPDATE users SET coin = coin + ?, exp = exp + ? WHERE id = ?', [coin, exp, req.userId]);
-
-    await conn.query(
-      `INSERT OR IGNORE INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date)
-       VALUES (?, 0, 0, 0, 0, 0, 0, date('now'))`,
-      [req.userId]
-    );
-
-    if (ALLOWED_STATS.has(statType) && statAmount > 0) {
-      await conn.query(
-        `UPDATE stats
-         SET ${statType} = ${statType} + ?,
-             daily_fatigue = daily_fatigue + ?,
-             last_updated_date = date('now')
-         WHERE user_id = ?`,
-        [statAmount, fatigue, req.userId]
-      );
-    } else {
-      await conn.query(
-        `UPDATE stats
-         SET daily_fatigue = daily_fatigue + ?,
-             last_updated_date = date('now')
-         WHERE user_id = ?`,
-        [fatigue, req.userId]
-      );
-    }
+    await ensureStatsRow(conn, req.userId);
+    const r = await applyQuestReward(conn, req.userId, quest);
 
     await conn.commit();
     return res.json({
       ok: true,
       rewards: {
-        coin,
-        exp,
-        fatigue,
+        coin: r.coin,
+        exp: r.exp,
+        statType: r.statType,
+        statAmount: r.statAmount,
+        fatigue: r.fatigue,
       },
+      levelUp: r.levelUp,
+      evolved: r.evolved,
     });
   } catch (e) {
     try {

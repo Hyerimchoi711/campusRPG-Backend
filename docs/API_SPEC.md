@@ -32,6 +32,22 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 - 일부 엔드포인트는 하위 호환을 위해 **camelCase와 snake_case를 병행**합니다(예: `GET /api/me`의 `user.schoolYear` + `school_year`, `GET /api/users/:id`의 프로필 필드, `pet`의 진화 관련 필드).
 - 코인(`coin`)은 **숫자 타입**으로 내려갑니다.
 
+### `GET /api/me` — 프론트 계약 요약
+
+- `user.level`: 첫 번째 펫의 `pets.level`(캐릭터 레벨, 최소 1).
+- `user.exp`: `users.exp`, **0~999 구간**(1000마다 레벨업 시 1000 차감·펫 레벨 +1).
+- `user.maxStatPerStat`: `100 + 100 * floor((level-1)/5)`.
+- `user.stats.dailyFatigue`: **KST 당일** 퀘스트 보상으로 올라간 스탯 포인트 **합계(상한 70)**. DB `stats.quest_daily_stat_sum`. 날짜가 바뀌면 0으로 리셋.
+- `user.stats.lastUpdatedDate`: 위 일일 합·스탯 갱신이 일어난 **KST 일자**(`YYYY-MM-DD`)와 동기.
+- `GET /api/stats`의 `dailyFatigue` / `daily_fatigue`는 **별도**로 DB `stats.daily_fatigue`(아이템 등 **피로도**)이며, 퀘스트 일일 합은 `questDailyStatSum`입니다.
+
+### 펫 진화(퀘스트 보상 트랜잭션 끝에서 평가)
+
+1. **1차(알 → 유아기)**: `evolution_stage === 0`, `animal_type === 'egg'`, `pets.level >= 6`. 스탯 우선순위 **health → diligence → focus → social → creativity** 중 **100 이상**인 첫 스탯으로 `egg_hatch_rules`를 조회해 `lineage_type`, `animal_type` 설정, `evolution_stage = 1`.
+2. **2차(유아기 → 성체)**: `evolution_stage === 1`, `pets.level >= 11`, 계열 주력 스탯( fire→health, water→diligence, sprout→focus, cloud→social, lightning→creativity )이 **200 이상**이면 `pet_evolution_rules`(우선순위 `priority`)로 `animal_type`을 성체로 갱신하고 `evolution_stage`를 1 증가.
+
+`PATCH /api/me/quests/daily|weekly` 및 레거시 `POST /api/quests/:id/complete`는 동일 보상 엔진을 사용합니다. 응답에 `levelUp`, `evolved` 플래그가 포함될 수 있습니다.
+
 ### Bearer JWT가 필요한 경로 (요약)
 
 `Authorization: Bearer <JWT>` 헤더가 필요합니다: `GET /api/me`, **`GET /api/me/quests/current`**, **`PATCH /api/me/quests/daily`**, **`PATCH /api/me/quests/weekly`**, `GET /api/wallet`, …
@@ -46,11 +62,11 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | POST | `/api/auth/login`         | 로그인 → JWT 발급                             |
 | POST | `/api/auth/register`      | 회원가입                                     |
 | GET  | `/api/me`                 | 로그인 사용자 + 펫 + **`user.stats`** (`Bearer`) |
-| GET  | `/api/me/quests/current`  | KST 기준 일일 5 + 주간 3 퀘스트 롤(없으면 서버 생성, `Bearer`) |
-| PATCH| `/api/me/quests/daily`      | 일일 슬롯 0~4 완료/해제 `{ slot, completed }` (`Bearer`) |
-| PATCH| `/api/me/quests/weekly`     | 주간 슬롯 0~2 완료/해제 (`Bearer`) |
+| GET  | `/api/me/quests/current`  | KST 기준 일일 5 + 주간 3 퀘스트 롤(`Bearer`). `rollDate`, `weekId`, **`rollWeek`**(=`weekId`), `daily`, `weekly` + 기본 **`user`·`pet`**(`GET /api/me`와 동일). `?includeMe=0`이면 롤만. |
+| PATCH| `/api/me/quests/daily`      | `{ slot, completed }` (`Bearer`). 성공 시 **갱신된 롤 전체 + `user`·`pet`**·`rewards`·`levelUp`·`evolved`. |
+| PATCH| `/api/me/quests/weekly`     | 주간 슬롯 0~2, 응답 형식은 일일과 동일. |
 | GET  | `/api/quests?type=`        | (레거시) `user_quests` 목록 — **신규 UI는 `/api/me/quests/current` 사용** |
-| POST | `/api/quests/:id/complete` | (레거시) 완료 처리 — 롤 기반과 별개 |
+| POST | `/api/quests/:id/complete` | (레거시) 완료 처리 — **슬롯 롤과 별개**이나 보상 규칙은 일일 퀘스트와 동일 엔진 적용 |
 | GET  | `/api/announcements`      | 공지 목록 `[{ id, title, createdAt }]` (인증 불필요)   |
 | GET  | `/api/announcements/:id`  | 공지 상세 `{ id, title, content, createdAt }`      |
 | GET  | `/api/events`             | 이벤트 목록 `[{ id, title, imageUrl, linkUrl, createdAt }]` |
@@ -107,10 +123,10 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 메서드 | 경로           | 설명                                |
 | --- | ------------ | --------------------------------- |
-| GET | `/api/stats` | 5종 스탯 + 일일 피로도(`daily_fatigue`) 등 |
+| GET | `/api/stats` | 5종 스탯, `daily_fatigue`(피로도), `questDailyStatSum`(당일 퀘스트 스탯 합 0~70) 등 |
 
 
-피로도 증가는 보통 **퀘스트 완료 API** 트랜잭션 안에서 처리.
+퀘스트 보상으로 스탯이 오를 때는 **`stats.quest_daily_stat_sum`**과 **`users.exp` / `pets.level`** 규칙이 적용됩니다. 피로도 회복 아이템 등은 **`stats.daily_fatigue`**만 변경합니다.
 
 ### 3.4 투두(일정)
 
@@ -235,7 +251,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 날짜         | 내용                                          |
 | ---------- | ------------------------------------------- |
-| 2026-05-13 | 퀘스트 롤 테이블·`GET/PATCH /api/me/quests/*`·`quests.reward_coin`/`for_roll_pool`·`/api/me`에 `stats` 추가 |
+| 2026-05-13 | 퀘스트 롤·`GET/PATCH /api/me/quests/*`·`/api/me`에 `stats` 추가 이후, **동일 날짜**에 계약 확장: `user.level`/`maxStatPerStat`, `stats.dailyFatigue`→퀘스트 일일 합(`quest_daily_stat_sum`), KST `lastUpdatedDate`, EXP 1000 캐리·스탯 상한·일일 70·펫 진화, PATCH·`POST /api/quests/:id/complete`의 `levelUp`/`evolved` |
 | 2026-04-06 | 초안 작성 — 구현 API·추가 예정 API·활동 매핑·카카오·보안 메모 정리 |
 
 

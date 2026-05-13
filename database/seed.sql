@@ -13,26 +13,17 @@ INSERT INTO pets (user_id, name, level, evolution_stage, animal_type, lineage_ty
 (2, '파이로소어', 12, 1, '파이로소어', 'fire', datetime('now', '-3 days')),
 (3, '워티', 5, 1, '워티', 'water', datetime('now', '-1 day'));
 
-INSERT INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date) VALUES
-(1, 45, 55, 72, 80, 63, 30, date('now')),
-(2, 120, 90, 150, 110, 85, 70, date('now')),
-(3, 80, 120, 60, 95, 140, 10, date('now'));
+INSERT INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, quest_daily_stat_sum, last_updated_date) VALUES
+(1, 45, 55, 72, 80, 63, 30, 0, date('now')),
+(2, 120, 90, 150, 110, 85, 70, 0, date('now')),
+(3, 80, 120, 60, 95, 140, 10, 0, date('now')),
+(4, 0, 0, 0, 0, 0, 0, 0, NULL);
 
 INSERT INTO schedules (user_id, content, target_date, is_completed) VALUES
 (1, '운영체제 과제 제출', date('now'), 1),
 (1, '스터디 모임 참석', date('now'), 0),
 (1, '헬스장 1시간', date('now', '+1 day'), 0),
 (2, '알고리즘 복습', date('now'), 1);
-
-INSERT INTO quests (title, type, reward_coin, reward_stat_type, reward_stat_amount) VALUES
-('아침 9시 전 기상', 'DAILY', 50, 'diligence', 1),
-('강의 출석 완료', 'DAILY', 80, 'diligence', 2),
-('도서관 2시간 공부', 'DAILY', 120, 'focus', 2),
-('과제 제출하기', 'DAILY', 150, 'diligence', 3),
-('동아리 활동 참여', 'DAILY', 100, 'social', 2),
-('전공 서적 1권 읽기', 'WEEKLY', 500, 'focus', 5),
-('운동 3회 이상 하기', 'WEEKLY', 300, 'health', 5),
-('새로운 친구 1명 사귀기', 'WEEKLY', 400, 'social', 5);
 
 INSERT INTO user_quests (user_id, quest_id, is_completed, assigned_date) VALUES
 (1, 1, 1, date('now')),

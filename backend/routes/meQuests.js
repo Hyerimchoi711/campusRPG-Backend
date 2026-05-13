@@ -6,17 +6,31 @@ const {
   patchDailySlot,
   patchWeeklySlot,
 } = require('../services/questRollService');
+const { getMeUserAndPet } = require('../services/mePayloadService');
 
 const router = express.Router();
 
 router.get('/quests/current', requireAuth, async (req, res) => {
   try {
     const data = await getCurrentQuestSet(db, req.userId);
+    const includeMe = req.query?.includeMe !== '0' && req.query?.includeMe !== 'false';
+    let user = null;
+    let pet = null;
+    if (includeMe) {
+      const snap = await getMeUserAndPet(db, req.userId);
+      if (snap) {
+        user = snap.user;
+        pet = snap.pet;
+      }
+    }
     return res.json({
       rollDate: data.rollDate,
       weekId: data.weekId,
+      rollWeek: data.weekId,
       daily: data.daily,
       weekly: data.weekly,
+      user,
+      pet,
     });
   } catch (e) {
     console.error('[meQuests] GET /quests/current', e);

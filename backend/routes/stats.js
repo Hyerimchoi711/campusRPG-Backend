@@ -13,6 +13,8 @@ function toStatsResponse(row) {
     creativity: row.creativity,
     dailyFatigue: row.daily_fatigue,
     daily_fatigue: row.daily_fatigue,
+    questDailyStatSum: Number(row.quest_daily_stat_sum) || 0,
+    quest_daily_stat_sum: Number(row.quest_daily_stat_sum) || 0,
     lastUpdatedDate: row.last_updated_date,
     last_updated_date: row.last_updated_date,
   };
@@ -21,7 +23,8 @@ function toStatsResponse(row) {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT health, social, diligence, focus, creativity, daily_fatigue, last_updated_date
+      `SELECT health, social, diligence, focus, creativity, daily_fatigue,
+              COALESCE(quest_daily_stat_sum, 0) AS quest_daily_stat_sum, last_updated_date
        FROM stats
        WHERE user_id = ?
        LIMIT 1`,

@@ -164,8 +164,8 @@ router.post('/register', async (req, res) => {
 
     const [result] = await conn.query(
       `INSERT INTO users (
-        email, \`password\`, nickname, student_id, major, university_name, age, school_year, friend_code
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        email, \`password\`, nickname, student_id, major, university_name, age, school_year, friend_code, coin, exp
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
       [email, passwordHash, nickname, student_id, major, university_name, age, school_year, friendCode]
     );
 
@@ -177,8 +177,8 @@ router.post('/register', async (req, res) => {
       [userId]
     );
     await conn.query(
-      `INSERT INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date)
-       VALUES (?, 0, 0, 0, 0, 0, 0, date('now'))`,
+      `INSERT OR IGNORE INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, quest_daily_stat_sum, last_updated_date)
+     VALUES (?, 0, 0, 0, 0, 0, 0, 0, NULL)`,
       [userId]
     );
 

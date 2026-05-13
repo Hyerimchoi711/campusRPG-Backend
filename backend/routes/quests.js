@@ -8,6 +8,7 @@ const ALLOWED_TYPES = new Set(['DAILY', 'WEEKLY']);
 const ALLOWED_STATS = new Set(['health', 'social', 'diligence', 'focus', 'creativity']);
 const DEFAULT_FATIGUE_REWARD = 1;
 
+/** @deprecated Prefer GET /api/me/quests/current + PATCH /api/me/quests/daily|weekly */
 function toApiQuest(row) {
   return {
     id: row.id,
@@ -16,11 +17,12 @@ function toApiQuest(row) {
     type: row.type,
     completed: Boolean(row.is_completed),
     progress: 0,
-    coinReward: row.reward_coin,
-    expReward: 0,
+    coinReward: Number(row.reward_coin) || 0,
+    expReward: Number(row.reward_exp) || 0,
   };
 }
 
+/** @deprecated 레거시: user_quests 기반 목록 (슬롯 롤과 무관) */
 router.get('/quests', requireAuth, async (req, res) => {
   const type = String(req.query?.type || 'DAILY').trim().toUpperCase();
   if (!ALLOWED_TYPES.has(type)) {
@@ -33,6 +35,7 @@ router.get('/quests', requireAuth, async (req, res) => {
          q.id,
          q.title,
          q.type,
+         q.reward_exp,
          q.reward_coin,
          uq.is_completed,
          uq.assigned_date
@@ -50,6 +53,7 @@ router.get('/quests', requireAuth, async (req, res) => {
   }
 });
 
+/** @deprecated 레거시: POST 완료 (슬롯 롤과 무관). 신규는 PATCH /api/me/quests/daily|weekly */
 router.post('/quests/:id/complete', requireAuth, async (req, res) => {
   const questId = Number(req.params.id);
   if (!Number.isInteger(questId) || questId < 1) {
@@ -60,11 +64,12 @@ router.post('/quests/:id/complete', requireAuth, async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const [[quest]] = await conn.query(
+    const [qrows] = await conn.query(
       `SELECT
          uq.id AS user_quest_id,
          uq.is_completed,
          q.id,
+         q.reward_exp,
          q.reward_coin,
          q.reward_stat_type,
          q.reward_stat_amount
@@ -74,6 +79,7 @@ router.post('/quests/:id/complete', requireAuth, async (req, res) => {
        LIMIT 1`,
       [req.userId, questId]
     );
+    const quest = qrows[0];
 
     if (!quest) {
       await conn.rollback();
@@ -85,18 +91,18 @@ router.post('/quests/:id/complete', requireAuth, async (req, res) => {
     }
 
     const coin = Number(quest.reward_coin) || 0;
-    const exp = 0;
+    const exp = Number(quest.reward_exp) || 0;
     const fatigue = DEFAULT_FATIGUE_REWARD;
     const statType = String(quest.reward_stat_type || '').trim();
     const statAmount = Number(quest.reward_stat_amount) || 0;
 
+    await conn.query('UPDATE user_quests SET is_completed = 1 WHERE id = ?', [quest.user_quest_id]);
+    await conn.query('UPDATE users SET coin = coin + ?, exp = exp + ? WHERE id = ?', [coin, exp, req.userId]);
+
     await conn.query(
-      'UPDATE user_quests SET is_completed = 1 WHERE id = ?',
-      [quest.user_quest_id]
-    );
-    await conn.query(
-      'UPDATE users SET coin = coin + ?, exp = exp + ? WHERE id = ?',
-      [coin, exp, req.userId]
+      `INSERT OR IGNORE INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, last_updated_date)
+       VALUES (?, 0, 0, 0, 0, 0, 0, date('now'))`,
+      [req.userId]
     );
 
     if (ALLOWED_STATS.has(statType) && statAmount > 0) {

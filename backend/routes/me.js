@@ -7,8 +7,11 @@ const router = express.Router();
 router.get('/', requireAuth, async (req, res) => {
   try {
     const [users] = await db.query(
-      `SELECT id, email, nickname, coin, exp, student_id, major, university_name, age, school_year, friend_code, intro, avatar
-       FROM users WHERE id = ? LIMIT 1`,
+      `SELECT u.id, u.email, u.nickname, u.coin, u.exp, u.student_id, u.major, u.university_name, u.age, u.school_year, u.friend_code, u.intro, u.avatar,
+              s.health, s.social, s.diligence, s.focus, s.creativity, s.daily_fatigue, s.last_updated_date AS stats_last_updated
+       FROM users u
+       LEFT JOIN stats s ON s.user_id = u.id
+       WHERE u.id = ? LIMIT 1`,
       [req.userId]
     );
     if (!users.length) {
@@ -38,6 +41,15 @@ router.get('/', requireAuth, async (req, res) => {
         friendCode: u.friend_code,
         intro: u.intro,
         avatar: u.avatar,
+        stats: {
+          health: Number(u.health) || 0,
+          social: Number(u.social) || 0,
+          diligence: Number(u.diligence) || 0,
+          focus: Number(u.focus) || 0,
+          creativity: Number(u.creativity) || 0,
+          dailyFatigue: Number(u.daily_fatigue) || 0,
+          lastUpdatedDate: u.stats_last_updated || null,
+        },
       },
       pet: p
         ? {

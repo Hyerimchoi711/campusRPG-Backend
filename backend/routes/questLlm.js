@@ -173,8 +173,9 @@ function toApiQuest(row) {
     type: row.type,
     completed: Boolean(row.is_completed),
     progress: 0,
-    coinReward: row.reward_coin,
-    expReward: 0,
+    coinReward: Number(row.reward_coin) || 0,
+    expReward: Number(row.reward_exp) || 0,
+    questSource: 'llm',
   };
 }
 
@@ -208,8 +209,8 @@ router.post('/quests/generate', requireAuth, async (req, res) => {
     const saved = [];
     for (const quest of quests) {
       const [questResult] = await conn.query(
-        `INSERT INTO quests (title, type, reward_coin, reward_stat_type, reward_stat_amount)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO quests (title, type, reward_exp, reward_coin, reward_stat_type, reward_stat_amount, for_roll_pool)
+         VALUES (?, ?, 0, ?, ?, ?, 0)`,
         [
           quest.title,
           quest.type,

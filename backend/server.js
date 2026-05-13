@@ -3,6 +3,7 @@ const express = require('express');
 const authRoutes = require('./routes/auth');
 const kakaoAuthRoutes = require('./routes/kakaoAuth');
 const meRoutes = require('./routes/me');
+const meQuestsRoutes = require('./routes/meQuests');
 const profileRoutes = require('./routes/profile');
 const statsRoutes = require('./routes/stats');
 const inventoryRoutes = require('./routes/inventory');
@@ -28,6 +29,7 @@ app.use(express.json());
 // 인증·프로필 (JWT)
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/kakao', kakaoAuthRoutes);
+app.use('/api/me', meQuestsRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/events', eventsRoutes);

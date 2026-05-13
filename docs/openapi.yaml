@@ -225,7 +225,7 @@ paths:
     get:
       tags: [me]
       summary: 내 정보 조회
-      description: 인증된 사용자의 기본 프로필과 첫 번째 펫 정보를 반환합니다.
+      description: 인증된 사용자의 기본 프로필, **`user.stats`**(스탯·피로도), 첫 번째 펫 정보를 반환합니다.
       security:
         - bearerAuth: []
       responses:
@@ -243,6 +243,123 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: 사용자를 찾을 수 없습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/me/quests/current:
+    get:
+      tags: [me]
+      summary: 오늘·이번 주 퀘스트 롤 조회
+      description: |
+        KST 기준 `rollDate`의 일일 5슬롯·`weekId`(해당 주 월요일)의 주간 3슬롯을 서버에서 조합합니다.
+        행이 없으면 지연 생성합니다. `questSource`는 `default`(풀 롤) 또는 LLM 전용 배정과 구분할 때 사용합니다.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 일일 5 + 주간 3
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestCurrentResponse"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 조회 또는 롤 생성 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/me/quests/daily:
+    patch:
+      tags: [me]
+      summary: 일일 퀘스트 슬롯 완료/해제
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestSlotPatchRequest"
+      responses:
+        "200":
+          description: 갱신 성공. 첫 완료 시에만 rewards가 채워질 수 있습니다.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestSlotPatchResponse"
+        "400":
+          description: 잘못된 slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 슬롯 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/me/quests/weekly:
+    patch:
+      tags: [me]
+      summary: 주간 퀘스트 슬롯 완료/해제
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestSlotPatchRequest"
+      responses:
+        "200":
+          description: 갱신 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestSlotPatchResponse"
+        "400":
+          description: 잘못된 slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 슬롯 없음
           content:
             application/json:
               schema:
@@ -815,8 +932,10 @@ paths:
       tags: [quests]
       security:
         - bearerAuth: []
-      summary: 퀘스트 목록 조회
-      description: 인증된 사용자에게 배정된 일일 또는 주간 퀘스트와 완료 상태를 조회합니다.
+      summary: 퀘스트 목록 조회 (레거시)
+      description: |
+        **레거시:** `user_quests`에 배정된 퀘스트만 반환합니다. 일일 5·주간 3 **슬롯 롤**과는 무관합니다.
+        신규 클라이언트는 `GET /api/me/quests/current`를 사용하세요.
       parameters:
         - in: query
           name: type
@@ -859,8 +978,10 @@ paths:
       tags: [quests]
       security:
         - bearerAuth: []
-      summary: 퀘스트 완료 처리
-      description: 인증된 사용자에게 배정된 퀘스트를 완료 처리하고 코인, 스탯, 피로도를 반영합니다.
+      summary: 퀘스트 완료 처리 (레거시)
+      description: |
+        **레거시:** `user_quests` 배정 행을 완료하고 `reward_exp`·`reward_coin`·스탯·피로도를 반영합니다.
+        슬롯 롤(`PATCH /api/me/quests/daily|weekly`)과는 별도입니다.
       parameters:
         - in: path
           name: id
@@ -1563,6 +1684,28 @@ components:
         avatar:
           type: string
           example: "🐱"
+        stats:
+          $ref: "#/components/schemas/UserStatsSummary"
+
+    UserStatsSummary:
+      type: object
+      required: [health, social, diligence, focus, creativity, dailyFatigue]
+      properties:
+        health:
+          type: integer
+        social:
+          type: integer
+        diligence:
+          type: integer
+        focus:
+          type: integer
+        creativity:
+          type: integer
+        dailyFatigue:
+          type: integer
+        lastUpdatedDate:
+          type: string
+          nullable: true
 
     Pet:
       type: object
@@ -1603,6 +1746,102 @@ components:
           type: string
           nullable: true
       nullable: true
+
+    QuestRollAssignment:
+      type: object
+      required:
+        - assignmentId
+        - slot
+        - questId
+        - title
+        - rewardExp
+        - rewardCoin
+        - rewardStatType
+        - rewardStatAmount
+        - completed
+        - rewardGrantedThisSlot
+        - questSource
+      properties:
+        assignmentId:
+          type: integer
+        slot:
+          type: integer
+        questId:
+          type: integer
+        title:
+          type: string
+        rewardExp:
+          type: integer
+        rewardCoin:
+          type: integer
+        rewardStatType:
+          type: string
+          nullable: true
+        rewardStatAmount:
+          type: integer
+        completed:
+          type: boolean
+        rewardGrantedThisSlot:
+          type: boolean
+        questSource:
+          type: string
+          enum: [default, llm]
+
+    QuestCurrentResponse:
+      type: object
+      required: [rollDate, weekId, daily, weekly]
+      properties:
+        rollDate:
+          type: string
+          format: date
+          description: KST 기준 일자 YYYY-MM-DD
+        weekId:
+          type: string
+          description: KST 기준 해당 주 월요일 YYYY-MM-DD
+        daily:
+          type: array
+          minItems: 5
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/QuestRollAssignment"
+        weekly:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/QuestRollAssignment"
+
+    QuestSlotPatchRequest:
+      type: object
+      required: [slot, completed]
+      properties:
+        slot:
+          type: integer
+          minimum: 0
+        completed:
+          type: boolean
+
+    QuestSlotPatchResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        rewards:
+          type: object
+          nullable: true
+          properties:
+            exp:
+              type: integer
+            coin:
+              type: integer
+            statType:
+              type: string
+              nullable: true
+            statAmount:
+              type: integer
+            fatigue:
+              type: integer
 
     AnnouncementListItem:
       type: object
@@ -2134,6 +2373,10 @@ components:
         expReward:
           type: integer
           example: 0
+        questSource:
+          type: string
+          enum: [default, llm]
+          description: LLM 생성 응답에서만 llm
 
     QuestCompleteResponse:
       type: object

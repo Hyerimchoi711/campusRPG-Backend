@@ -4,6 +4,8 @@ DROP TABLE IF EXISTS events;
 DROP TABLE IF EXISTS announcements;
 DROP TABLE IF EXISTS friend_requests;
 DROP TABLE IF EXISTS friendships;
+DROP TABLE IF EXISTS user_weekly_quest_roll;
+DROP TABLE IF EXISTS user_daily_quest_roll;
 DROP TABLE IF EXISTS user_quests;
 DROP TABLE IF EXISTS quests;
 DROP TABLE IF EXISTS schedules;
@@ -78,9 +80,39 @@ CREATE TABLE quests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     type TEXT NOT NULL CHECK (type IN ('DAILY', 'WEEKLY')),
-    reward_coin INTEGER DEFAULT 0,
+    reward_exp INTEGER DEFAULT 0,
+    reward_coin INTEGER NOT NULL DEFAULT 0,
     reward_stat_type TEXT,
-    reward_stat_amount INTEGER DEFAULT 0
+    reward_stat_amount INTEGER DEFAULT 0,
+    for_roll_pool INTEGER NOT NULL DEFAULT 1 CHECK (for_roll_pool IN (0, 1))
+);
+
+CREATE TABLE user_daily_quest_roll (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    roll_date TEXT NOT NULL,
+    slot INTEGER NOT NULL CHECK (slot BETWEEN 0 AND 4),
+    quest_id INTEGER NOT NULL,
+    completed INTEGER NOT NULL DEFAULT 0,
+    reward_granted_this_slot INTEGER NOT NULL DEFAULT 0,
+    quest_source TEXT NOT NULL DEFAULT 'default' CHECK (quest_source IN ('default', 'llm')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE CASCADE,
+    UNIQUE (user_id, roll_date, slot)
+);
+
+CREATE TABLE user_weekly_quest_roll (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    week_id TEXT NOT NULL,
+    slot INTEGER NOT NULL CHECK (slot BETWEEN 0 AND 2),
+    quest_id INTEGER NOT NULL,
+    completed INTEGER NOT NULL DEFAULT 0,
+    reward_granted_this_slot INTEGER NOT NULL DEFAULT 0,
+    quest_source TEXT NOT NULL DEFAULT 'default' CHECK (quest_source IN ('default', 'llm')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE CASCADE,
+    UNIQUE (user_id, week_id, slot)
 );
 
 CREATE TABLE user_quests (

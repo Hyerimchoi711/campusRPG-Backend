@@ -34,7 +34,7 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 
 ### Bearer JWT가 필요한 경로 (요약)
 
-`Authorization: Bearer <JWT>` 헤더가 필요합니다: `GET /api/me`, `GET /api/wallet`, `GET /api/inventory`, `POST /api/inventory/purchase`, 친구 API 전부(`GET /api/friends` …), `GET /api/users/:userId`, 퀘스트·LLM 등 인증이 붙은 라우트.
+`Authorization: Bearer <JWT>` 헤더가 필요합니다: `GET /api/me`, **`GET /api/me/quests/current`**, **`PATCH /api/me/quests/daily`**, **`PATCH /api/me/quests/weekly`**, `GET /api/wallet`, …
 
 공개(인증 없음): `GET /`, `GET /api/health`, `POST /api/auth/login`, `POST /api/auth/register`, 카카오 시작 URL, `GET /api/items`, **`GET /api/announcements`**, **`GET /api/announcements/:id`**, **`GET /api/events`**.
 
@@ -45,7 +45,12 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | GET  | `/api/health`             | DB 연결 헬스 체크                              |
 | POST | `/api/auth/login`         | 로그인 → JWT 발급                             |
 | POST | `/api/auth/register`      | 회원가입                                     |
-| GET  | `/api/me`                 | 로그인 사용자 + 펫 요약 (`Authorization: Bearer`) |
+| GET  | `/api/me`                 | 로그인 사용자 + 펫 + **`user.stats`** (`Bearer`) |
+| GET  | `/api/me/quests/current`  | KST 기준 일일 5 + 주간 3 퀘스트 롤(없으면 서버 생성, `Bearer`) |
+| PATCH| `/api/me/quests/daily`      | 일일 슬롯 0~4 완료/해제 `{ slot, completed }` (`Bearer`) |
+| PATCH| `/api/me/quests/weekly`     | 주간 슬롯 0~2 완료/해제 (`Bearer`) |
+| GET  | `/api/quests?type=`        | (레거시) `user_quests` 목록 — **신규 UI는 `/api/me/quests/current` 사용** |
+| POST | `/api/quests/:id/complete` | (레거시) 완료 처리 — 롤 기반과 별개 |
 | GET  | `/api/announcements`      | 공지 목록 `[{ id, title, createdAt }]` (인증 불필요)   |
 | GET  | `/api/announcements/:id`  | 공지 상세 `{ id, title, content, createdAt }`      |
 | GET  | `/api/events`             | 이벤트 목록 `[{ id, title, imageUrl, linkUrl, createdAt }]` |
@@ -230,7 +235,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 날짜         | 내용                                          |
 | ---------- | ------------------------------------------- |
-| 2026-05-06 | 공지/이벤트 API·DB 반영, 친구 API 경로·삭제 검증, 문서·OpenAPI·응답 규약 정리 |
+| 2026-05-13 | 퀘스트 롤 테이블·`GET/PATCH /api/me/quests/*`·`quests.reward_coin`/`for_roll_pool`·`/api/me`에 `stats` 추가 |
 | 2026-04-06 | 초안 작성 — 구현 API·추가 예정 API·활동 매핑·카카오·보안 메모 정리 |
 
 

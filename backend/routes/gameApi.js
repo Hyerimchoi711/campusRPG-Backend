@@ -12,11 +12,11 @@ function ensureRequestedUserMatchesToken(req, res) {
 
   const userId = Number(requestedUserId);
   if (!Number.isInteger(userId) || userId < 1) {
-    res.status(400).json({ error: 'INVALID_USER_ID' });
+    res.status(400).json({ error: 'INVALID_USER_ID', message: '유효한 userId가 필요합니다.' });
     return false;
   }
   if (userId !== req.userId) {
-    res.status(403).json({ error: 'FORBIDDEN_USER' });
+    res.status(403).json({ error: 'FORBIDDEN_USER', message: '토큰 사용자와 일치하지 않는 userId입니다.' });
     return false;
   }
   return true;
@@ -76,42 +76,14 @@ router.get('/items', async (_req, res) => {
 
 /** 보유 코인 */
 router.get('/wallet', requireAuth, async (req, res) => {
-  // #region agent log
-  console.log('[agent-debug][H3] wallet handler reached', {
-    queryUserId: req.query.userId ?? null,
-    tokenUserId: req.userId ?? null,
-  });
-  // #endregion
-  // #region agent log
-  fetch('http://127.0.0.1:7446/ingest/b8ad1565-784d-4b14-a18f-f677017f34aa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ab100e'},body:JSON.stringify({sessionId:'ab100e',runId:'wallet-401-run1',hypothesisId:'H3',location:'routes/gameApi.js:80',message:'wallet route reached after auth',data:{queryUserId:req.query.userId??null,tokenUserId:req.userId??null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!ensureRequestedUserMatchesToken(req, res)) {
-    // #region agent log
-    console.log('[agent-debug][H3] wallet rejected by ensureRequestedUserMatchesToken', {
-      queryUserId: req.query.userId ?? null,
-      tokenUserId: req.userId ?? null,
-    });
-    // #endregion
-    // #region agent log
-    fetch('http://127.0.0.1:7446/ingest/b8ad1565-784d-4b14-a18f-f677017f34aa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ab100e'},body:JSON.stringify({sessionId:'ab100e',runId:'wallet-401-run1',hypothesisId:'H3',location:'routes/gameApi.js:83',message:'wallet user mismatch or invalid userId',data:{queryUserId:req.query.userId??null,tokenUserId:req.userId??null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return;
   }
   const userId = req.userId;
   try {
     const [[row]] = await pool.query('SELECT coin FROM users WHERE id = ?', [userId]);
-    if (!row) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-    // #region agent log
-    console.log('[agent-debug][H4] wallet coin fetched', {
-      userId,
-      coin: row.coin,
-      coinType: typeof row.coin,
-    });
-    // #endregion
-    // #region agent log
-    fetch('http://127.0.0.1:7446/ingest/b8ad1565-784d-4b14-a18f-f677017f34aa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ab100e'},body:JSON.stringify({sessionId:'ab100e',runId:'wallet-401-run1',hypothesisId:'H4',location:'routes/gameApi.js:92',message:'wallet coin fetched',data:{userId,coinType:typeof row.coin},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    res.json({ coin: row.coin });
+    if (!row) return res.status(404).json({ error: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.' });
+    res.json({ coin: Number(row.coin) });
   } catch (e) {
     console.error('[gameApi] GET /wallet', e);
     res.status(500).json({ error: 'WALLET_FETCH_FAILED' });
@@ -126,7 +98,7 @@ router.get('/inventory', requireAuth, async (req, res) => {
   const userId = req.userId;
   try {
     const [[user]] = await pool.query('SELECT id FROM users WHERE id = ?', [userId]);
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.' });
     const [rows] = await pool.query(invSelectSql, [userId]);
     res.json(rows);
   } catch (e) {
@@ -143,7 +115,7 @@ router.post('/inventory/purchase', requireAuth, async (req, res) => {
   const userId = req.userId;
   const itemId = Number(req.body?.itemId);
   if (!Number.isInteger(itemId) || itemId < 1) {
-    return res.status(400).json({ error: 'INVALID_BODY' });
+    return res.status(400).json({ error: 'INVALID_BODY', message: 'itemId는 1 이상의 정수여야 합니다.' });
   }
 
   const conn = await pool.getConnection();
@@ -156,7 +128,7 @@ router.post('/inventory/purchase', requireAuth, async (req, res) => {
     );
     if (!item) {
       await conn.rollback();
-      return res.status(404).json({ error: 'ITEM_NOT_FOUND' });
+      return res.status(404).json({ error: 'ITEM_NOT_FOUND', message: '아이템을 찾을 수 없습니다.' });
     }
 
     const [[userRow]] = await conn.query(
@@ -165,11 +137,11 @@ router.post('/inventory/purchase', requireAuth, async (req, res) => {
     );
     if (!userRow) {
       await conn.rollback();
-      return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.' });
     }
-    if (userRow.coin < item.price) {
+    if (Number(userRow.coin) < item.price) {
       await conn.rollback();
-      return res.status(402).json({ error: 'INSUFFICIENT_FUNDS', coin: userRow.coin });
+      return res.status(402).json({ error: 'INSUFFICIENT_FUNDS', message: '코인이 부족합니다.', coin: Number(userRow.coin) });
     }
 
     await conn.query('UPDATE users SET coin = coin - ? WHERE id = ?', [item.price, userId]);
@@ -186,7 +158,7 @@ router.post('/inventory/purchase', requireAuth, async (req, res) => {
     const [inventory] = await pool.query(invSelectSql, [userId]);
 
     res.json({
-      coin: u2.coin,
+      coin: Number(u2.coin),
       inventory,
     });
   } catch (e) {

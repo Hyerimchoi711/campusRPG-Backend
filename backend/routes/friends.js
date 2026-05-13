@@ -89,6 +89,17 @@ router.delete('/:friendUserId', requireAuth, async (req, res) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    const [existing] = await conn.query(
+      `SELECT 1 AS ok FROM friendships
+       WHERE (user_id = ? AND friend_user_id = ?) OR (user_id = ? AND friend_user_id = ?)
+       LIMIT 1`,
+      [req.userId, friendUserId, friendUserId, req.userId]
+    );
+    if (!existing.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'FRIEND_NOT_FOUND', message: '친구 관계를 찾을 수 없습니다.' });
+    }
+
     await conn.query('DELETE FROM friendships WHERE user_id = ? AND friend_user_id = ?', [req.userId, friendUserId]);
     await conn.query('DELETE FROM friendships WHERE user_id = ? AND friend_user_id = ?', [friendUserId, req.userId]);
     await conn.commit();
@@ -176,8 +187,8 @@ router.get('/requests/incoming', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/requests/:id/accept', requireAuth, async (req, res) => {
-  const requestId = Number(req.params.id);
+router.post('/requests/:requestId/accept', requireAuth, async (req, res) => {
+  const requestId = Number(req.params.requestId);
   if (!Number.isInteger(requestId) || requestId < 1) {
     return res.status(400).json({ error: 'INVALID_REQUEST_ID', message: '유효한 요청 ID가 필요합니다.' });
   }
@@ -225,8 +236,8 @@ router.post('/requests/:id/accept', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/requests/:id/reject', requireAuth, async (req, res) => {
-  const requestId = Number(req.params.id);
+router.post('/requests/:requestId/reject', requireAuth, async (req, res) => {
+  const requestId = Number(req.params.requestId);
   if (!Number.isInteger(requestId) || requestId < 1) {
     return res.status(400).json({ error: 'INVALID_REQUEST_ID', message: '유효한 요청 ID가 필요합니다.' });
   }

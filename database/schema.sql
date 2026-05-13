@@ -1,5 +1,7 @@
 PRAGMA foreign_keys = OFF;
 
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS announcements;
 DROP TABLE IF EXISTS friend_requests;
 DROP TABLE IF EXISTS friendships;
 DROP TABLE IF EXISTS user_quests;
@@ -173,6 +175,21 @@ CREATE TABLE friend_requests (
 CREATE UNIQUE INDEX uk_friend_requests_pending_pair
 ON friend_requests(from_user_id, to_user_id)
 WHERE status = 'pending';
+
+CREATE TABLE announcements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    image_url TEXT,
+    link_url TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TRIGGER trg_user_inventory_updated_at
 AFTER UPDATE ON user_inventory

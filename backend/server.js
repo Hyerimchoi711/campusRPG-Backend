@@ -5,6 +5,8 @@ const kakaoAuthRoutes = require('./routes/kakaoAuth');
 const meRoutes = require('./routes/me');
 const gameApi = require('./routes/gameApi');
 const friendsRoutes = require('./routes/friends');
+const announcementsRoutes = require('./routes/announcements');
+const eventsRoutes = require('./routes/events');
 const usersRoutes = require('./routes/users');
 const questsRoutes = require('./routes/quests');
 const questLlmRoutes = require('./routes/questLlm');
@@ -18,19 +20,13 @@ const PORT = process.env.PORT || 8888;
 // Middleware
 app.use(createCorsMiddleware());
 app.use(express.json());
-app.use((req, _res, next) => {
-  if (req.originalUrl.startsWith('/api/wallet')) {
-    // #region agent log
-    fetch('http://127.0.0.1:7446/ingest/b8ad1565-784d-4b14-a18f-f677017f34aa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ab100e'},body:JSON.stringify({sessionId:'ab100e',runId:'wallet-401-run2',hypothesisId:'H5',location:'server.js:22',message:'request reached backend server',data:{method:req.method,url:req.originalUrl,hasAuthorization:Boolean(req.headers.authorization)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }
-  next();
-});
 
 // 인증·프로필 (JWT)
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/kakao', kakaoAuthRoutes);
 app.use('/api/me', meRoutes);
+app.use('/api/announcements', announcementsRoutes);
+app.use('/api/events', eventsRoutes);
 app.use('/api/friends', friendsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api', questsRoutes);

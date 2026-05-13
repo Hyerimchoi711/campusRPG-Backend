@@ -24,7 +24,19 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 
 ## 2. 구현됨 — 명세에 포함할 API
 
-메인 백엔드 기본 포트는 `.env`의 `PORT`(미설정 시 `5555`) 기준입니다.
+메인 백엔드 기본 포트는 `.env`의 `PORT`(미설정 시 `8888`, `backend/server.js` 기준)입니다.
+
+### 응답 키 규약 (프론트 친화)
+
+- DB `snake_case` → JSON에서는 가능한 한 **camelCase** (`createdAt`, `imageUrl`, `linkUrl`, `universityName`, `schoolYear`, `friendCode` 등).
+- 일부 엔드포인트는 하위 호환을 위해 **camelCase와 snake_case를 병행**합니다(예: `GET /api/me`의 `user.schoolYear` + `school_year`, `GET /api/users/:id`의 프로필 필드, `pet`의 진화 관련 필드).
+- 코인(`coin`)은 **숫자 타입**으로 내려갑니다.
+
+### Bearer JWT가 필요한 경로 (요약)
+
+`Authorization: Bearer <JWT>` 헤더가 필요합니다: `GET /api/me`, `GET /api/wallet`, `GET /api/inventory`, `POST /api/inventory/purchase`, 친구 API 전부(`GET /api/friends` …), `GET /api/users/:userId`, 퀘스트·LLM 등 인증이 붙은 라우트.
+
+공개(인증 없음): `GET /`, `GET /api/health`, `POST /api/auth/login`, `POST /api/auth/register`, 카카오 시작 URL, `GET /api/items`, **`GET /api/announcements`**, **`GET /api/announcements/:id`**, **`GET /api/events`**.
 
 
 | 메서드  | 경로                        | 설명                                       |
@@ -34,10 +46,21 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | POST | `/api/auth/login`         | 로그인 → JWT 발급                             |
 | POST | `/api/auth/register`      | 회원가입                                     |
 | GET  | `/api/me`                 | 로그인 사용자 + 펫 요약 (`Authorization: Bearer`) |
+| GET  | `/api/announcements`      | 공지 목록 `[{ id, title, createdAt }]` (인증 불필요)   |
+| GET  | `/api/announcements/:id`  | 공지 상세 `{ id, title, content, createdAt }`      |
+| GET  | `/api/events`             | 이벤트 목록 `[{ id, title, imageUrl, linkUrl, createdAt }]` |
+| GET  | `/api/users/:userId`      | 공개 프로필 (`Bearer` 필요)                      |
+| GET  | `/api/friends`            | 친구 목록 (`Bearer`)                         |
+| PATCH| `/api/friends/order`      | 친구 정렬 (`Bearer`, `orderedUserIds`: 숫자 배열)   |
+| DELETE| `/api/friends/:friendUserId` | 친구 삭제 (`Bearer`, 관계 없으면 404)            |
+| POST | `/api/friends/requests`   | 친구 코드로 요청 (`Bearer`)                    |
+| GET  | `/api/friends/requests/incoming` | 받은 요청 (`Bearer`)                    |
+| POST | `/api/friends/requests/:requestId/accept` | 수락 (`Bearer`)              |
+| POST | `/api/friends/requests/:requestId/reject` | 거절 (`Bearer`)              |
 | GET  | `/api/items`              | 상점 아이템 카탈로그                              |
-| GET  | `/api/wallet?userId=`     | 보유 코인 조회                                 |
-| GET  | `/api/inventory?userId=`  | 가방(인벤토리) 목록                              |
-| POST | `/api/inventory/purchase` | 코인 차감 후 인벤토리에 아이템 추가                     |
+| GET  | `/api/wallet?userId=`     | 보유 코인 조회 (`Bearer`; `userId` 생략 또는 토큰과 일치) |
+| GET  | `/api/inventory?userId=`  | 가방(인벤토리) 목록 (`Bearer`)                    |
+| POST | `/api/inventory/purchase` | 코인 차감 후 인벤토리에 아이템 추가 (`Bearer`)          |
 
 
 ### 맞춤 퀘스트 (LLM)
@@ -111,12 +134,12 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 | 메서드   | 경로                                 | 설명                                                                 |
 | ----- | ---------------------------------- | -------------------------------------------------------------------- |
 | GET   | `/api/friends`                     | 로그인 사용자의 친구 목록 (`friendUserId`, `sortOrder`, `nickname`, `intro`, `avatar`) |
-| PATCH | `/api/friends/order`               | 친구 정렬 순서 저장 — body: `{ "orderedUserIds": ["2","5",...] }`           |
-| DELETE| `/api/friends/:friendUserId`       | 친구 삭제 (양방향 관계 동시 삭제)                                                |
+| PATCH | `/api/friends/order`               | 친구 정렬 순서 저장 — body: `{ "orderedUserIds": [2,5,...] }` (정수 배열)           |
+| DELETE| `/api/friends/:friendUserId`       | 친구 삭제 (양방향 관계 동시 삭제; 해당 관계 없으면 404)                                                |
 | POST  | `/api/friends/requests`            | 친구 코드로 요청 — body: `{ "friendCode": "..." }`                        |
 | GET   | `/api/friends/requests/incoming`   | 받은 친구 요청 목록 (`id`, `fromUserId`, `nickname`, `intro`, `avatar`)     |
-| POST  | `/api/friends/requests/:id/accept` | 수락                                                                  |
-| POST  | `/api/friends/requests/:id/reject` | 거절                                                                  |
+| POST  | `/api/friends/requests/:requestId/accept` | 수락                                                                  |
+| POST  | `/api/friends/requests/:requestId/reject` | 거절                                                                  |
 
 ### 3.7 사용자 공개 프로필
 
@@ -154,7 +177,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 | 가방에서 아이템 사용·소모 | POST `/api/inventory/use`                                                      |
 | 투두 일정 추가·완료    | POST `/api/schedules`, POST `/api/schedules/:id/complete`                      |
 | 퀘스트 수행         | POST `/api/quests/:id/complete`                                                |
-| 친구 요청·수락·거절·삭제 | POST `/api/friends/request`, `.../accept`, `.../reject`, `.../remove` + GET 목록 |
+| 친구 요청·수락·거절·삭제 | `POST /api/friends/requests`, `.../requests/:requestId/accept`, `.../reject`, `DELETE /api/friends/:friendUserId` + `GET` 목록 |
 | 프로필 한줄소개 수정    | POST `/api/me/bio` 등                                                           |
 | 로그인            | POST `/api/auth/login`                                                         |
 | 로그아웃           | 클라이언트에서 JWT 삭제가 일반적; 서버 세션 사용 시 POST `/api/auth/logout` 검토                     |
@@ -178,7 +201,8 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 ## 6. 보안·명세 작성 시 권장
 
-- `wallet`, `inventory`, `purchase`가 현재 **body/query의 `userId`** 를 받습니다. 운영에서는 **JWT의 `userId`만 신뢰**하고, GET `/api/wallet`, GET `/api/inventory`, POST `/api/inventory/purchase`를 **Bearer 기준으로 통일**하는 편이 안전합니다.
+- 오류 응답은 가능한 한 `{ "error": "<코드 또는 메시지>", "message": "<사람이 읽기 쉬운 설명>" }` 형태를 사용합니다.
+- `wallet`, `inventory`, `purchase`는 **Bearer JWT**가 필요합니다. `userId`를 query/body로 넘기면 **토큰의 사용자와 일치할 때만** 허용됩니다.
 - `/api/me` 및 민감 조회는 **OpenAPI `security: bearerAuth`** 로 표기합니다.
 
 ---
@@ -189,6 +213,8 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 - `auth` — 로그인, 회원가입, (카카오)
 - `me` / `profile` — 내 정보, 한줄소개
+- `announcements` — 공지
+- `events` — 이벤트 배너
 - `stats` — 스탯·피로도
 - `schedules` — 투두
 - `quests` — 기본 퀘스트
@@ -204,6 +230,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 날짜         | 내용                                          |
 | ---------- | ------------------------------------------- |
+| 2026-05-06 | 공지/이벤트 API·DB 반영, 친구 API 경로·삭제 검증, 문서·OpenAPI·응답 규약 정리 |
 | 2026-04-06 | 초안 작성 — 구현 API·추가 예정 API·활동 매핑·카카오·보안 메모 정리 |
 
 

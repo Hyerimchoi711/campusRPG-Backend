@@ -91,3 +91,13 @@ INSERT INTO friendships (user_id, friend_user_id, sort_order) VALUES
 
 INSERT INTO friend_requests (from_user_id, to_user_id, status) VALUES
 (3, 1, 'pending');
+
+INSERT INTO announcements (title, content, created_at) VALUES
+('서버 점검 안내', '5월 10일 새벽 2시~4시 예정 점검입니다. 이용에 참고해 주세요.', datetime('now', '-2 days')),
+('친구 기능 업데이트', '친구 코드로 요청하고 수락할 수 있습니다. 프로필에서 친구 코드를 확인하세요.', datetime('now', '-1 day')),
+('이벤트 안내', '봄맞이 로그인 이벤트가 진행 중입니다. 자세한 내용은 이벤트 배너를 확인하세요.', datetime('now'));
+
+INSERT INTO events (title, image_url, link_url, created_at) VALUES
+('봄맞이 출석 이벤트', '/images/events/spring_attendance.png', 'https://example.com/events/spring', datetime('now', '-3 days')),
+('친구 초대 보상', '/images/events/refer_friend.png', 'https://example.com/events/refer', datetime('now', '-1 day')),
+('주말 더블 코인', '/images/events/double_coin.png', 'https://example.com/events/double-coin', datetime('now'));

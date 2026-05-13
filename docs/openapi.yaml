@@ -19,6 +19,10 @@ tags:
     description: 로그인, 회원가입 및 카카오 로그인
   - name: me
     description: 로그인한 사용자 정보 조회
+  - name: announcements
+    description: 공지사항 목록 및 상세 (인증 불필요)
+  - name: events
+    description: 이벤트 배너 목록 (인증 불필요)
   - name: shop
     description: 상점 아이템 목록
   - name: wallet
@@ -239,6 +243,87 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/announcements:
+    get:
+      tags: [announcements]
+      summary: 공지 목록
+      description: |
+        최신순(`createdAt`) 공지 요약 목록을 반환합니다. 응답 키는 camelCase(`createdAt`)입니다.
+      responses:
+        "200":
+          description: 공지 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnnouncementListItem"
+        "500":
+          description: 조회 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/announcements/{id}:
+    get:
+      tags: [announcements]
+      summary: 공지 상세
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: 공지 본문 포함
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnouncementDetail"
+        "400":
+          description: 잘못된 ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 공지 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 조회 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/events:
+    get:
+      tags: [events]
+      summary: 이벤트 목록
+      description: |
+        최신순 이벤트 배너 목록. `imageUrl`, `linkUrl`, `createdAt`은 DB의 snake_case에서 camelCase로 매핑됩니다.
+      responses:
+        "200":
+          description: 이벤트 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventListItem"
+        "500":
+          description: 조회 실패
           content:
             application/json:
               schema:
@@ -621,7 +706,8 @@ paths:
                 orderedUserIds:
                   type: array
                   items:
-                    type: string
+                    type: integer
+                    minimum: 1
       responses:
         "200":
           description: 저장 성공
@@ -668,6 +754,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 친구 관계 없음
           content:
             application/json:
               schema:
@@ -764,7 +856,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /api/friends/requests/{id}/accept:
+  /api/friends/requests/{requestId}/accept:
     post:
       tags: [friends]
       summary: 친구 요청 수락
@@ -772,8 +864,9 @@ paths:
         - bearerAuth: []
       parameters:
         - in: path
-          name: id
+          name: requestId
           required: true
+          description: friend_requests 테이블의 PK(id)
           schema:
             type: integer
             minimum: 1
@@ -811,7 +904,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /api/friends/requests/{id}/reject:
+  /api/friends/requests/{requestId}/reject:
     post:
       tags: [friends]
       summary: 친구 요청 거절
@@ -819,8 +912,9 @@ paths:
         - bearerAuth: []
       parameters:
         - in: path
-          name: id
+          name: requestId
           required: true
+          description: friend_requests 테이블의 PK(id)
           schema:
             type: integer
             minimum: 1
@@ -921,6 +1015,9 @@ components:
       properties:
         error:
           type: string
+        message:
+          type: string
+          description: 사람이 읽기 쉬운 부가 설명(선택)
 
     ErrorCodeResponse:
       type: object
@@ -1185,7 +1282,59 @@ components:
           type: string
           nullable: true
           example: "2026-05-06 14:00:00"
+        evolution_stage:
+          type: integer
+          description: DB 컬럼명과 동일한 snake_case 별칭(호환)
+        animal_type:
+          type: string
+        lineage_type:
+          type: string
+          nullable: true
+        last_evolved_at:
+          type: string
+          nullable: true
       nullable: true
+
+    AnnouncementListItem:
+      type: object
+      required: [id, title, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+
+    AnnouncementDetail:
+      type: object
+      required: [id, title, content, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+
+    EventListItem:
+      type: object
+      required: [id, title, imageUrl, linkUrl, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        linkUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
 
     FriendItem:
       type: object

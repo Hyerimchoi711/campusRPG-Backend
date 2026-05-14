@@ -26,6 +26,21 @@ const dbPromise = open({
       console.warn('[db] stats.quest_daily_stat_sum migration:', e.message);
     }
   }
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS todo_completion_reward_claims (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date_key TEXT NOT NULL,
+        client_todo_id TEXT NOT NULL,
+        awarded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE (user_id, date_key, client_todo_id)
+      )
+    `);
+  } catch (e) {
+    console.warn('[db] todo_completion_reward_claims migration:', e.message);
+  }
   console.log(`Successfully connected to SQLite database: ${dbPath}`);
   return db;
 });

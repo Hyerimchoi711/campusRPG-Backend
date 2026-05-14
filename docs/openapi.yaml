@@ -256,6 +256,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/me/todo-completion-reward:
+    post:
+      tags: [me]
+      summary: 투두 완료 보너스 코인 (+100)
+      description: |
+        JWT 사용자만 처리합니다. `dateKey`가 **서버 오늘(KST)** 과 같을 때만 지급 로직에 진입합니다.
+        `(user_id, date_key, client_todo_id)` 유니크로 **최초 1회만** `users.coin`에 +100 (`GET /api/wallet`과 동일 소스).
+        이미 지급된 조합이면 **200** + `awarded: false` + 현재 `coin`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TodoCompletionRewardRequest"
+      responses:
+        "200":
+          description: 처리 완료 (중복·미지급 포함 항상 200 + 본문)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodoCompletionRewardResponse"
+        "400":
+          description: 본문 오류 또는 NOT_TODAY
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 사용자 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/me/quests/current:
     get:
       tags: [me]
@@ -1856,6 +1904,36 @@ components:
           minimum: 0
         completed:
           type: boolean
+
+    TodoCompletionRewardRequest:
+      type: object
+      required: [dateKey, clientTodoId]
+      properties:
+        dateKey:
+          type: string
+          format: date
+          description: YYYY-MM-DD (프론트 로컬 `toDateKey`와 동일 문자열; 서버는 KST 오늘과만 비교)
+          example: "2026-05-13"
+        clientTodoId:
+          oneOf:
+            - type: integer
+            - type: string
+          description: 로컬 Todo 식별자
+
+    TodoCompletionRewardResponse:
+      type: object
+      required: [awarded, coin]
+      properties:
+        awarded:
+          type: boolean
+          description: 이번 요청에서 처음 지급했으면 true, 이미 지급된 조합이면 false
+        coin:
+          type: integer
+          description: 처리 후 `users.coin` 잔액
+        amount:
+          type: integer
+          description: 지급 시 보통 100 (awarded가 false면 생략 가능)
+          example: 100
 
     QuestSlotPatchResponse:
       type: object

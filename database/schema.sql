@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS user_daily_quest_roll;
 DROP TABLE IF EXISTS user_quests;
 DROP TABLE IF EXISTS quests;
 DROP TABLE IF EXISTS schedules;
+DROP TABLE IF EXISTS todo_completion_reward_claims;
 DROP TABLE IF EXISTS user_inventory;
 DROP TABLE IF EXISTS items;
 DROP TABLE IF EXISTS pet_evolution_history;
@@ -75,6 +76,16 @@ CREATE TABLE schedules (
     reward_exp INTEGER DEFAULT 50,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE todo_completion_reward_claims (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    date_key TEXT NOT NULL,
+    client_todo_id TEXT NOT NULL,
+    awarded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE (user_id, date_key, client_todo_id)
 );
 
 CREATE TABLE quests (

@@ -48,9 +48,15 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 
 `PATCH /api/me/quests/daily|weekly` 및 레거시 `POST /api/quests/:id/complete`는 동일 보상 엔진을 사용합니다. 응답에 `levelUp`, `evolved` 플래그가 포함될 수 있습니다.
 
+### 투두 완료 보너스 (`POST /api/me/todo-completion-reward`)
+
+- **오늘**: `dateKey`는 서버 **KST** `YYYY-MM-DD`와 정확히 같아야 지급(아니면 `400`, `error: NOT_TODAY`).
+- **멱등**: DB `todo_completion_reward_claims`에 `UNIQUE(user_id, date_key, client_todo_id)`. 최초만 +100, 재요청은 **200** + `awarded: false` + 현재 `coin`.
+- **지갑**: `GET /api/wallet`과 동일하게 `users.coin`만 갱신.
+
 ### Bearer JWT가 필요한 경로 (요약)
 
-`Authorization: Bearer <JWT>` 헤더가 필요합니다: `GET /api/me`, **`GET /api/me/quests/current`**, **`PATCH /api/me/quests/daily`**, **`PATCH /api/me/quests/weekly`**, `GET /api/wallet`, …
+`Authorization: Bearer <JWT>` 헤더가 필요합니다: `GET /api/me`, **`POST /api/me/todo-completion-reward`**, **`GET /api/me/quests/current`**, **`PATCH /api/me/quests/daily`**, **`PATCH /api/me/quests/weekly`**, `GET /api/wallet`, …
 
 공개(인증 없음): `GET /`, `GET /api/health`, `POST /api/auth/login`, `POST /api/auth/register`, 카카오 시작 URL, `GET /api/items`, **`GET /api/announcements`**, **`GET /api/announcements/:id`**, **`GET /api/events`**.
 
@@ -62,6 +68,7 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | POST | `/api/auth/login`         | 로그인 → JWT 발급                             |
 | POST | `/api/auth/register`      | 회원가입                                     |
 | GET  | `/api/me`                 | 로그인 사용자 + 펫 + **`user.stats`** (`Bearer`) |
+| POST | `/api/me/todo-completion-reward` | 투두 완료 보너스 `{ dateKey, clientTodoId }` — **KST 오늘**·`(user, date, todo)` 유니크로 최초 1회만 `users.coin` +100. 응답 `{ awarded, coin, amount? }`. 불일치 시 **400** `NOT_TODAY`. |
 | GET  | `/api/me/quests/current`  | KST 기준 일일 5 + 주간 3 퀘스트 롤(`Bearer`). `rollDate`, `weekId`, **`rollWeek`**(=`weekId`), `daily`, `weekly` + 기본 **`user`·`pet`**(`GET /api/me`와 동일). `?includeMe=0`이면 롤만. |
 | PATCH| `/api/me/quests/daily`      | `{ slot, completed }` (`Bearer`). 성공 시 **갱신된 롤 전체 + `user`·`pet`**·`rewards`·`levelUp`·`evolved`. |
 | PATCH| `/api/me/quests/weekly`     | 주간 슬롯 0~2, 응답 형식은 일일과 동일. |
@@ -251,6 +258,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 날짜         | 내용                                          |
 | ---------- | ------------------------------------------- |
+| 2026-05-13 | `POST /api/me/todo-completion-reward` — KST 오늘·멱등 +100 코인, `todo_completion_reward_claims` |
 | 2026-05-13 | 퀘스트 롤·`GET/PATCH /api/me/quests/*`·`/api/me`에 `stats` 추가 이후, **동일 날짜**에 계약 확장: `user.level`/`maxStatPerStat`, `stats.dailyFatigue`→퀘스트 일일 합(`quest_daily_stat_sum`), KST `lastUpdatedDate`, EXP 1000 캐리·스탯 상한·일일 70·펫 진화, PATCH·`POST /api/quests/:id/complete`의 `levelUp`/`evolved` |
 | 2026-04-06 | 초안 작성 — 구현 API·추가 예정 API·활동 매핑·카카오·보안 메모 정리 |
 

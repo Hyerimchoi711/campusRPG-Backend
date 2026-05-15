@@ -1446,7 +1446,10 @@ paths:
   /api/users/{userId}:
     get:
       tags: [users]
-      summary: 공개 프로필 조회
+      summary: 공개 프로필 조회 (친구·본인)
+      description: |
+        본인(`userId` = 토큰 사용자) 또는 `friendships`에 등록된 친구만 조회할 수 있습니다.
+        `GET /api/me`와 동일하게 최상위 `pet`과 `user.level`(첫 펫 `pets.level`)을 반환합니다.
       security:
         - bearerAuth: []
       parameters:
@@ -1462,11 +1465,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [user]
-                properties:
-                  user:
-                    $ref: "#/components/schemas/PublicUser"
+                $ref: "#/components/schemas/PublicProfileResponse"
         "400":
           description: 잘못된 사용자 ID입니다
           content:
@@ -1475,6 +1474,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Bearer 토큰이 없거나 유효하지 않습니다
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: 친구가 아니며 본인 프로필도 아님
           content:
             application/json:
               schema:
@@ -2082,6 +2087,17 @@ components:
           type: string
           example: "🦊"
 
+    PublicProfileResponse:
+      type: object
+      required: [user, pet]
+      properties:
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        pet:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Pet"
+
     PublicUser:
       type: object
       required:
@@ -2089,6 +2105,7 @@ components:
           id,
           userId,
           nickname,
+          level,
           universityName,
           major,
           schoolYear,
@@ -2105,6 +2122,11 @@ components:
         nickname:
           type: string
           example: campusMate
+        level:
+          type: integer
+          minimum: 1
+          description: 캐릭터 레벨(첫 펫 pets.level, /api/me와 동일)
+          example: 3
         intro:
           type: string
           example: 같이 놀아요

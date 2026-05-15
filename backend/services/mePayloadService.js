@@ -2,6 +2,35 @@
 
 const { maxStatForLevel } = require('./questRewardEngine');
 
+function formatPetRow(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    level: p.level,
+    evolutionStage: p.evolution_stage,
+    evolution_stage: p.evolution_stage,
+    animalType: p.animal_type,
+    animal_type: p.animal_type,
+    lineageType: p.lineage_type,
+    lineage_type: p.lineage_type,
+    lastEvolvedAt: p.last_evolved_at,
+    last_evolved_at: p.last_evolved_at,
+  };
+}
+
+async function fetchFirstPet(db, userId) {
+  const [pets] = await db.query(
+    `SELECT id, name, level, evolution_stage, animal_type, lineage_type, last_evolved_at
+     FROM pets WHERE user_id = ? ORDER BY id ASC LIMIT 1`,
+    [userId]
+  );
+  return pets[0] || null;
+}
+
+function characterLevelFromPet(p) {
+  return p ? Number(p.level) || 1 : 1;
+}
+
 /**
  * GET /api/me 과 동일한 `{ user, pet }` 스냅샷 (Bearer로 식별된 userId 전용).
  * @returns {Promise<{ user: object, pet: object|null }|null>}
@@ -21,13 +50,8 @@ async function getMeUserAndPet(db, userId) {
     return null;
   }
   const u = users[0];
-  const [pets] = await db.query(
-    `SELECT id, name, level, evolution_stage, animal_type, lineage_type, last_evolved_at
-     FROM pets WHERE user_id = ? ORDER BY id ASC LIMIT 1`,
-    [userId]
-  );
-  const p = pets[0] || null;
-  const characterLevel = p ? Number(p.level) || 1 : 1;
+  const p = await fetchFirstPet(db, userId);
+  const characterLevel = characterLevelFromPet(p);
 
   return {
     user: {
@@ -57,22 +81,50 @@ async function getMeUserAndPet(db, userId) {
         lastUpdatedDate: u.stats_last_updated || null,
       },
     },
-    pet: p
-      ? {
-          id: p.id,
-          name: p.name,
-          level: p.level,
-          evolutionStage: p.evolution_stage,
-          evolution_stage: p.evolution_stage,
-          animalType: p.animal_type,
-          animal_type: p.animal_type,
-          lineageType: p.lineage_type,
-          lineage_type: p.lineage_type,
-          lastEvolvedAt: p.last_evolved_at,
-          last_evolved_at: p.last_evolved_at,
-        }
-      : null,
+    pet: p ? formatPetRow(p) : null,
   };
 }
 
-module.exports = { getMeUserAndPet };
+/**
+ * GET /api/users/:id 공개 프로필 — 프로필 필드 + user.level + pet (비공개 경제/스탯 제외).
+ * @returns {Promise<{ user: object, pet: object|null }|null>}
+ */
+async function getPublicUserAndPet(db, userId) {
+  const [users] = await db.query(
+    `SELECT id, nickname, intro, avatar, university_name, major, school_year, age, friend_code
+     FROM users WHERE id = ? LIMIT 1`,
+    [userId]
+  );
+  if (!users.length) {
+    return null;
+  }
+  const u = users[0];
+  const p = await fetchFirstPet(db, userId);
+  const characterLevel = characterLevelFromPet(p);
+
+  return {
+    user: {
+      id: u.id,
+      userId: u.id,
+      nickname: u.nickname,
+      level: characterLevel,
+      intro: u.intro,
+      avatar: u.avatar,
+      universityName: u.university_name,
+      university_name: u.university_name,
+      major: u.major,
+      schoolYear: u.school_year,
+      school_year: u.school_year,
+      age: u.age,
+      friendCode: u.friend_code,
+      friend_code: u.friend_code,
+    },
+    pet: p ? formatPetRow(p) : null,
+  };
+}
+
+module.exports = {
+  formatPetRow,
+  getMeUserAndPet,
+  getPublicUserAndPet,
+};

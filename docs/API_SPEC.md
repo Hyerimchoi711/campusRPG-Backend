@@ -77,7 +77,7 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | GET  | `/api/announcements`      | 공지 목록 `[{ id, title, createdAt }]` (인증 불필요)   |
 | GET  | `/api/announcements/:id`  | 공지 상세 `{ id, title, content, createdAt }`      |
 | GET  | `/api/events`             | 이벤트 목록 `[{ id, title, imageUrl, linkUrl, createdAt }]` |
-| GET  | `/api/users/:userId`      | 공개 프로필 (`Bearer` 필요)                      |
+| GET  | `/api/users/:userId`      | 공개 프로필 + **`pet`**·**`user.level`** (`Bearer`, **본인 또는 친구**만 200, 아니면 403) |
 | GET  | `/api/friends`            | 친구 목록 (`Bearer`)                         |
 | PATCH| `/api/friends/order`      | 친구 정렬 (`Bearer`, `orderedUserIds`: 숫자 배열)   |
 | DELETE| `/api/friends/:friendUserId` | 친구 삭제 (`Bearer`, 관계 없으면 404)            |
@@ -173,7 +173,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| GET | `/api/users/:userId` | 공개 프로필 조회 (`{ user: {...} }`, `friendCode` 항상 노출) |
+| GET | `/api/users/:userId` | 공개 프로필 `{ user, pet }` — `user.level`은 첫 펫 레벨, `pet`은 `/api/me`와 동일 스키마(루트). **본인 또는 friendships 친구**만 조회(403). |
 
 
 ### 3.8 상점
@@ -258,6 +258,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 날짜         | 내용                                          |
 | ---------- | ------------------------------------------- |
+| 2026-05-13 | `GET /api/users/:id` — `pet`·`user.level`, 친구/본인만 403 정책 |
 | 2026-05-13 | `POST /api/me/todo-completion-reward` — KST 오늘·멱등 +100 코인, `todo_completion_reward_claims` |
 | 2026-05-13 | 퀘스트 롤·`GET/PATCH /api/me/quests/*`·`/api/me`에 `stats` 추가 이후, **동일 날짜**에 계약 확장: `user.level`/`maxStatPerStat`, `stats.dailyFatigue`→퀘스트 일일 합(`quest_daily_stat_sum`), KST `lastUpdatedDate`, EXP 1000 캐리·스탯 상한·일일 70·펫 진화, PATCH·`POST /api/quests/:id/complete`의 `levelUp`/`evolved` |
 | 2026-04-06 | 초안 작성 — 구현 API·추가 예정 API·활동 매핑·카카오·보안 메모 정리 |

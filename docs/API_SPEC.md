@@ -87,8 +87,9 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | POST | `/api/friends/requests/:requestId/reject` | 거절 (`Bearer`)              |
 | GET  | `/api/items`              | 상점 아이템 카탈로그                              |
 | GET  | `/api/wallet?userId=`     | 보유 코인 조회 (`Bearer`; `userId` 생략 또는 토큰과 일치) |
-| GET  | `/api/inventory?userId=`  | 가방(인벤토리) 목록 (`Bearer`)                    |
-| POST | `/api/inventory/purchase` | 코인 차감 후 인벤토리에 아이템 추가 (`Bearer`)          |
+| GET  | `/api/inventory`          | 가방 목록 (`Bearer`; `userId` 쿼리 deprecated)   |
+| POST | `/api/inventory/purchase` | 코인 차감 후 인벤토리 추가 (`Bearer`, body `{ itemId }`) |
+| POST | `/api/inventory/use`      | 아이템 사용 (`Bearer`, body `{ inventoryEntryId }`) |
 
 
 ### 맞춤 퀘스트 (LLM) — 프론트 연동 가이드
@@ -228,11 +229,20 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 
 ### 3.9 가방(인벤토리)
 
+인증: **Bearer JWT** (로그인 유저). `userId` query/body는 하위 호환용·**무시** 권장.
 
-| 메서드  | 경로                       | 설명                                          |
-| ---- | ------------------------ | ------------------------------------------- |
-| GET  | `/api/inventory?userId=` | 보관 목록 (구현됨)                                 |
-| POST | `/api/inventory/use`     | 아이템 사용 — 수량 감소 + `effect_type`에 따른 효과 (미구현) |
+| 메서드 | 경로 | 설명 |
+| ------ | ---- | ---- |
+| GET | `/api/inventory` | 보유 목록. 각 행 `id` = `user_inventory.id` (사용 API에 전달), `itemId`, `effectType`, `quantity` 등 |
+| POST | `/api/inventory/purchase` | body `{ itemId }` — 코인 차감·스택 |
+| POST | `/api/inventory/use` | body `{ inventoryEntryId }` — **PK는 `user_inventory.id`** (`itemId` 아님) |
+
+**`POST /api/inventory/use`**
+
+- `FATIGUE_RECOVERY`(에너지 드링크): `GET /api/me`의 `user.stats.dailyFatigue`와 동일 필드(`quest_daily_stat_sum`)를 KST 기준 최대 10 감소(하한 0). `effects.fatigueDelta`는 실제 감소분(음수).
+- `EXP_BOOST`, `STAT_BOOST`, `STAT_RESET`, `NAME_CHANGE`, `RANDOM_STAT`: 수량만 -1, 스탯/EXP/코인 변경 없음.
+- 성공 200: `{ ok, message, effects, user: { stats }, inventory[] }`
+- 에러: `404` `INVENTORY_ENTRY_NOT_FOUND`, `409` `INSUFFICIENT_QUANTITY`, `400` `INVALID_INVENTORY_ENTRY_ID` / `ITEM_NOT_USABLE`
 
 
 ---

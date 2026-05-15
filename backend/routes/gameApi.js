@@ -43,21 +43,7 @@ router.get('/health', async (_req, res) => {
   }
 });
 
-const invSelectSql = `
-  SELECT
-    ui.item_id AS itemId,
-    ui.quantity,
-    i.name,
-    i.description,
-    i.price,
-    i.image_url AS imageUrl,
-    i.icon_emoji AS iconEmoji,
-    i.effect_type AS effectType
-  FROM user_inventory ui
-  INNER JOIN items i ON i.id = ui.item_id
-  WHERE ui.user_id = ?
-  ORDER BY ui.id ASC
-`;
+const { listInventory } = require('../services/inventoryService');
 
 /** 상점·보관함 공통: 아이템 카탈로그 */
 router.get('/items', async (_req, res) => {
@@ -99,7 +85,7 @@ router.get('/inventory', requireAuth, async (req, res) => {
   try {
     const [[user]] = await pool.query('SELECT id FROM users WHERE id = ?', [userId]);
     if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.' });
-    const [rows] = await pool.query(invSelectSql, [userId]);
+    const rows = await listInventory(pool, userId);
     res.json(rows);
   } catch (e) {
     console.error('[gameApi] GET /inventory', e);
@@ -155,7 +141,7 @@ router.post('/inventory/purchase', requireAuth, async (req, res) => {
     await conn.commit();
 
     const [[u2]] = await pool.query('SELECT coin FROM users WHERE id = ?', [userId]);
-    const [inventory] = await pool.query(invSelectSql, [userId]);
+    const inventory = await listInventory(pool, userId);
 
     res.json({
       coin: Number(u2.coin),

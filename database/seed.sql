@@ -34,14 +34,12 @@ INSERT INTO user_quests (user_id, quest_id, is_completed, assigned_date) VALUES
 (1, 6, 0, date('now', 'weekday 1', '-7 days'));
 
 INSERT INTO items (name, description, price, image_url, icon_emoji, effect_type) VALUES
-('경험치 부스터', '1시간 동안 획득 경험치 2배', 500, '/images/items/exp_boost.png', 'XP', 'EXP_BOOST'),
-('스탯 초기화권', '모든 스탯을 초기화합니다', 1000, '/images/items/stat_reset.png', 'RST', 'STAT_RESET'),
-('황금 알', '희귀 펫이 부화할 확률 증가', 2000, '/images/items/golden_egg.png', 'EGG', 'RARE_EGG'),
 ('에너지 드링크', '오늘의 피로도를 10 회복', 300, '/images/items/energy_drink.png', 'NRG', 'FATIGUE_RECOVERY'),
+('경험치 비약', '경험치 500 획득', 500, '/images/items/exp_boost.png', 'XP', 'EXP_BOOST'),
+('스탯 비약', '모든 스탯 10 증가', 1000, '/images/items/stat_boost.png', 'STB', 'STAT_BOOST'),
+('스탯 초기화권', '모든 스탯을 초기화', 1000, '/images/items/stat_reset.png', 'RST', 'STAT_RESET'),
 ('이름 변경권', '펫의 이름을 변경합니다', 800, '/images/items/name_change.png', 'TAG', 'NAME_CHANGE'),
-('신비한 열매', '무작위 스탯 1~3 증가', 1500, '/images/items/mystery_fruit.png', 'FRT', 'RANDOM_STAT'),
-('부화 촉진제', '알 부화 시간을 단축합니다', 600, '/images/items/hatch_boost.png', 'HCH', 'HATCH_BOOST'),
-('펫 간식', '펫의 친밀도를 소폭 상승시킵니다', 200, '/images/items/pet_snack.png', 'SNK', 'AFFECTION_UP');
+('신비한 열매', '무작위 스탯 1~3 증가', 1500, '/images/items/mystery_fruit.png', 'FRT', 'RANDOM_STAT');
 
 INSERT INTO user_inventory (user_id, item_id, quantity) VALUES
 (1, 8, 2);

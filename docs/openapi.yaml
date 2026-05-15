@@ -802,7 +802,10 @@ paths:
       security:
         - bearerAuth: []
       summary: 아이템 사용
-      description: 인벤토리 아이템 수량을 1개 차감하고 `effectType`에 따라 즉시 적용 가능한 효과를 스탯에 반영합니다.
+      description: |
+        `user_inventory.id`(inventoryEntryId)로 1개 소모.
+        `FATIGUE_RECOVERY`는 KST 당일 `quest_daily_stat_sum`(GET /api/me의 dailyFatigue)을 최대 10 감소.
+        그 외 effectType은 수량만 차감(스탯/EXP/코인 변경 없음).
       requestBody:
         required: true
         content:
@@ -817,7 +820,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/InventoryUseResponse"
         "400":
-          description: 요청 본문이 올바르지 않습니다
+          description: inventoryEntryId 오류 또는 사용 불가 아이템
           content:
             application/json:
               schema:
@@ -829,7 +832,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorCodeResponse"
         "404":
-          description: 아이템, 인벤토리 항목 또는 스탯 정보를 찾을 수 없습니다
+          description: INVENTORY_ENTRY_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorCodeResponse"
+        "409":
+          description: INSUFFICIENT_QUANTITY
           content:
             application/json:
               schema:
@@ -2325,6 +2334,7 @@ components:
       type: object
       required:
         [
+          id,
           itemId,
           quantity,
           name,
@@ -2335,6 +2345,10 @@ components:
           effectType,
         ]
       properties:
+        id:
+          type: integer
+          description: user_inventory.id — POST /api/inventory/use의 inventoryEntryId
+          example: 42
         itemId:
           type: integer
           example: 1
@@ -2373,37 +2387,47 @@ components:
 
     InventoryUseRequest:
       type: object
-      required: [itemId]
+      required: [inventoryEntryId]
       properties:
-        itemId:
+        inventoryEntryId:
           type: integer
           minimum: 1
-          example: 3
+          description: user_inventory.id (itemId 아님)
+          example: 42
 
     InventoryUseResponse:
       type: object
-      required: [ok, remainingQuantity]
+      required: [ok, message, effects, user, inventory]
       properties:
         ok:
           type: boolean
           example: true
-        remainingQuantity:
-          type: integer
-          example: 1
-        appliedEffect:
+        message:
+          type: string
+          example: 에너지 드링크를 사용했습니다.
+        effects:
           type: object
-          nullable: true
           properties:
-            effectType:
-              type: string
-              example: RANDOM_STAT
-            statType:
-              type: string
-              nullable: true
-              example: focus
-            amount:
+            fatigueDelta:
               type: integer
-              example: 2
+              description: FATIGUE_RECOVERY 시 실제 감소분(음수). 그 외 생략 가능.
+              example: -10
+            coin:
+              type: integer
+              example: 0
+            exp:
+              type: integer
+              example: 0
+        user:
+          type: object
+          required: [stats]
+          properties:
+            stats:
+              $ref: "#/components/schemas/UserStatsSummary"
+        inventory:
+          type: array
+          items:
+            $ref: "#/components/schemas/InventoryItem"
 
     PurchaseRequest:
       type: object

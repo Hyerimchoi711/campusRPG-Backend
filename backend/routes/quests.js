@@ -7,8 +7,14 @@ const router = express.Router();
 const ALLOWED_TYPES = new Set(['DAILY', 'WEEKLY']);
 const { applyQuestReward, ensureStatsRow } = require('../services/questRewardEngine');
 
-/** @deprecated Prefer GET /api/me/quests/current + PATCH /api/me/quests/daily|weekly */
+function questSourceFromRow(row) {
+  return Number(row.for_roll_pool) === 0 ? 'llm' : 'default';
+}
+
+/** user_quests 배정 퀘스트 (맞춤 LLM + 레거시). 슬롯 롤은 GET /api/me/quests/current 사용. */
 function toApiQuest(row) {
+  const questSource = questSourceFromRow(row);
+  const isLlm = questSource === 'llm';
   return {
     id: row.id,
     title: row.title,
@@ -16,16 +22,27 @@ function toApiQuest(row) {
     type: row.type,
     completed: Boolean(row.is_completed),
     progress: 0,
-    coinReward: Number(row.reward_coin) || 0,
+    coinReward: isLlm ? 0 : Number(row.reward_coin) || 0,
     expReward: Number(row.reward_exp) || 0,
+    rewardStatType: row.reward_stat_type,
+    rewardStatAmount: Number(row.reward_stat_amount) || 0,
+    questSource,
   };
 }
 
-/** @deprecated 레거시: user_quests 기반 목록 (슬롯 롤과 무관) */
+/** user_quests 기반 목록 (맞춤 LLM: for_roll_pool=0, questSource=llm) */
 router.get('/quests', requireAuth, async (req, res) => {
   const type = String(req.query?.type || 'DAILY').trim().toUpperCase();
   if (!ALLOWED_TYPES.has(type)) {
     return res.status(400).json({ error: 'INVALID_QUEST_TYPE' });
+  }
+
+  const source = String(req.query?.source || '').trim().toLowerCase();
+  let poolFilter = '';
+  if (source === 'llm') {
+    poolFilter = ' AND q.for_roll_pool = 0';
+  } else if (source === 'default') {
+    poolFilter = ' AND q.for_roll_pool = 1';
   }
 
   try {
@@ -36,11 +53,14 @@ router.get('/quests', requireAuth, async (req, res) => {
          q.type,
          q.reward_exp,
          q.reward_coin,
+         q.reward_stat_type,
+         q.reward_stat_amount,
+         q.for_roll_pool,
          uq.is_completed,
          uq.assigned_date
        FROM user_quests uq
        INNER JOIN quests q ON q.id = uq.quest_id
-       WHERE uq.user_id = ? AND q.type = ?
+       WHERE uq.user_id = ? AND q.type = ?${poolFilter}
        ORDER BY uq.assigned_date DESC, uq.id ASC`,
       [req.userId, type]
     );
@@ -52,7 +72,7 @@ router.get('/quests', requireAuth, async (req, res) => {
   }
 });
 
-/** @deprecated 레거시: POST 완료 (슬롯 롤과 무관). 신규는 PATCH /api/me/quests/daily|weekly */
+/** 맞춤·레거시 퀘스트 완료 (슬롯 롤과 무관). 보상은 questRewardEngine(기본 퀘스트와 동일 규칙). */
 router.post('/quests/:id/complete', requireAuth, async (req, res) => {
   const questId = Number(req.params.id);
   if (!Number.isInteger(questId) || questId < 1) {
@@ -71,7 +91,8 @@ router.post('/quests/:id/complete', requireAuth, async (req, res) => {
          q.reward_exp,
          q.reward_coin,
          q.reward_stat_type,
-         q.reward_stat_amount
+         q.reward_stat_amount,
+         q.for_roll_pool
        FROM user_quests uq
        INNER JOIN quests q ON q.id = uq.quest_id
        WHERE uq.user_id = ? AND q.id = ?
@@ -89,6 +110,12 @@ router.post('/quests/:id/complete', requireAuth, async (req, res) => {
       return res.status(409).json({ error: 'QUEST_ALREADY_COMPLETED' });
     }
 
+    const isLlm = Number(quest.for_roll_pool) === 0;
+    if (isLlm && Number(quest.reward_coin) !== 0) {
+      await conn.query('UPDATE quests SET reward_coin = 0 WHERE id = ?', [quest.id]);
+      quest.reward_coin = 0;
+    }
+
     await conn.query('UPDATE user_quests SET is_completed = 1 WHERE id = ?', [quest.user_quest_id]);
     await ensureStatsRow(conn, req.userId);
     const r = await applyQuestReward(conn, req.userId, quest);
@@ -97,7 +124,7 @@ router.post('/quests/:id/complete', requireAuth, async (req, res) => {
     return res.json({
       ok: true,
       rewards: {
-        coin: r.coin,
+        coin: isLlm ? 0 : r.coin,
         exp: r.exp,
         statType: r.statType,
         statAmount: r.statAmount,

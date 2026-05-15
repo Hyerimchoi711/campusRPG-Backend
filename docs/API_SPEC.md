@@ -91,17 +91,58 @@ HTTP 메서드는 요구사항에 맞춰 **GET / POST** 중심으로 서술합�
 | POST | `/api/inventory/purchase` | 코인 차감 후 인벤토리에 아이템 추가 (`Bearer`)          |
 
 
-### 맞춤 퀘스트 (LLM)
+### 맞춤 퀘스트 (LLM) — 프론트 연동 가이드
 
-프론트는 Vite 프록시로 **별도 포트(예: 8787)** 의 퀘스트 서버를 호출할 수 있습니다.
+메인 백엔드(`PORT`, 기본 8888)에 통합. Vite는 `/api` → 메인 백엔드 프록시.
 
+**슬롯 롤(`PATCH /api/me/quests/daily|weekly`)은 맞춤 퀘스트에 사용하지 않습니다.** 맞춤은 `user_quests` + 아래 API.
 
-| 메서드  | 경로                     | 설명                                  |
-| ---- | ---------------------- | ----------------------------------- |
-| POST | `/api/quests/generate` | LLM 기반 퀘스트 생성(구현 위치에 따라 베이스 URL 분리) |
+| 단계 | 메서드·경로 | 설명 |
+| ---- | ----------- | ---- |
+| 생성 | `POST /api/quests/generate` | Bearer, body `{ "prompt"?, "context"? }` |
+| 목록 | `GET /api/quests?type=DAILY\|WEEKLY&source=llm` | 맞춤만 (`for_roll_pool=0`) |
+| 완료 | `POST /api/quests/:questId/complete` | `:questId` = 응답 `quests[].id` |
+| 동기화 | `GET /api/me` | 완료 후 EXP·스탯·레벨·펫 |
 
+**보상 (기본 퀘스트와 동일 `questRewardEngine`):**
 
-OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 태그로 구분하는 것을 권장합니다.
+| 구분 | EXP | 코인 | 스탯 amount |
+| ---- | --- | ---- | ----------- |
+| DAILY | 50~100 | 0 | 5~8 |
+| WEEKLY | 100~200 | 0 | 10~20 |
+
+완료 시: EXP 1000 캐리·일일 스탯 합 70·`maxStat` 클램프·KST 일자 리셋·`levelUp`/`evolved`. 맞춤(`for_roll_pool=0`)은 **코인 미지급** — `rewards.coin` 항상 0, DB `reward_coin`도 0으로 정규화.
+
+**생성 200 응답 예:**
+
+```json
+{
+  "quests": [{
+    "id": 201,
+    "title": "도서관에서 30분 복습",
+    "type": "DAILY",
+    "completed": false,
+    "coinReward": 0,
+    "expReward": 70,
+    "rewardStatType": "focus",
+    "rewardStatAmount": 6,
+    "questSource": "llm"
+  }]
+}
+```
+
+**완료 200 응답 예:**
+
+```json
+{
+  "ok": true,
+  "rewards": { "coin": 0, "exp": 70, "statType": "focus", "statAmount": 6, "fatigue": 0 },
+  "levelUp": false,
+  "evolved": false
+}
+```
+
+**에러:** 401 로그인, 409 `QUEST_ALREADY_COMPLETED`, 502 `INVALID_LLM_RESPONSE`, 503 `GEMINI_API_KEY_MISSING`, 500 `QUEST_GENERATION_FAILED`.
 
 ---
 
@@ -145,16 +186,16 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 | POST | `/api/schedules/:id/complete`          | 완료 처리 + 경험치 지급 |
 
 
-### 3.5 퀘스트 (기본 일일/주간)
+### 3.5 퀘스트
 
+**기본(슬롯 롤):** `GET /api/me/quests/current`, `PATCH /api/me/quests/daily|weekly`
+
+**맞춤(LLM):** 위 「맞춤 퀘스트」 절 참고
 
 | 메서드  | 경로                         | 설명                        |
 | ---- | -------------------------- | ------------------------- |
-| GET  | `/api/quests?type=DAILY` 등 | 오늘(또는 주간) 할당된 퀘스트 + 진행 상태 |
-| POST | `/api/quests/:id/complete` | 완료 시 스탯·코인·피로도 반영         |
-
-
-매일/주간 갱신은 크론·배치 또는 **조회 시 `user_quests` 자동 생성** 등 백엔드 로직으로 처리.
+| GET  | `/api/quests?type=&source=llm` | `user_quests` 맞춤 목록 (`source=llm` 권장) |
+| POST | `/api/quests/:id/complete` | 맞춤·레거시 완료 (EXP·스탯, 맞춤은 코인 0) |
 
 ### 3.6 친구
 
@@ -258,6 +299,7 @@ OpenAPI 작성 시 **메인 API**와 **퀘스트 LLM API**를 `servers` 또는 �
 
 | 날짜         | 내용                                          |
 | ---------- | ------------------------------------------- |
+| 2026-05-13 | 맞춤 퀘스트 보상 EXP·스탯(코인 0), `GET /api/quests?source=llm`, 생성/완료 API 스펙 |
 | 2026-05-13 | `GET /api/users/:id` — `pet`·`user.level`, 친구/본인만 403 정책 |
 | 2026-05-13 | `POST /api/me/todo-completion-reward` — KST 오늘·멱등 +100 코인, `todo_completion_reward_claims` |
 | 2026-05-13 | 퀘스트 롤·`GET/PATCH /api/me/quests/*`·`/api/me`에 `stats` 추가 이후, **동일 날짜**에 계약 확장: `user.level`/`maxStatPerStat`, `stats.dailyFatigue`→퀘스트 일일 합(`quest_daily_stat_sum`), KST `lastUpdatedDate`, EXP 1000 캐리·스탯 상한·일일 70·펫 진화, PATCH·`POST /api/quests/:id/complete`의 `levelUp`/`evolved` |

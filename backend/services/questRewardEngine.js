@@ -19,6 +19,11 @@ function maxStatForLevel(level) {
   return 100 + 100 * Math.floor((lv - 1) / 5);
 }
 
+/** 맞춤(LLM) 퀘스트: quests.for_roll_pool = 0 → 코인 미지급 */
+function isLlmQuest(quest) {
+  return Number(quest.for_roll_pool) === 0;
+}
+
 async function ensureStatsRow(conn, userId) {
   await conn.query(
     `INSERT OR IGNORE INTO stats (user_id, health, social, diligence, focus, creativity, daily_fatigue, quest_daily_stat_sum, last_updated_date)
@@ -108,7 +113,7 @@ async function applyQuestReward(conn, userId, quest) {
 
   const kstToday = kstYmd();
   const rewardExp = Number(quest.reward_exp) || 0;
-  const rewardCoin = Number(quest.reward_coin) || 0;
+  const rewardCoin = isLlmQuest(quest) ? 0 : Number(quest.reward_coin) || 0;
   const statType = String(quest.reward_stat_type || '').trim();
   const statAmountRaw = Number(quest.reward_stat_amount) || 0;
 
@@ -188,6 +193,7 @@ module.exports = {
   applyQuestReward,
   ensureStatsRow,
   maxStatForLevel,
+  isLlmQuest,
   ALLOWED_STATS,
   EXP_PER_LEVEL,
   DAILY_QUEST_STAT_CAP,

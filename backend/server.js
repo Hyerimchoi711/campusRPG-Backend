@@ -19,7 +19,6 @@ const { createCorsMiddleware } = require('./corsOptions');
 const { registerSwagger } = require('./swagger');
 
 const app = express();
-// 기본 5555: macOS에서 AirPlay가 5000을 점유하는 경우가 많음 (.env의 PORT로 덮어씀)
 const PORT = process.env.PORT || 8888;
 
 // Middleware

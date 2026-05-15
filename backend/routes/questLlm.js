@@ -17,17 +17,22 @@ const MODEL_ALIASES = {
 const ALLOWED_TYPES = new Set(['DAILY', 'WEEKLY']);
 const ALLOWED_STATS = new Set(['health', 'social', 'diligence', 'focus', 'creativity']);
 
+const REWARD_RANGES = {
+  DAILY: { exp: [50, 100], stat: [5, 8] },
+  WEEKLY: { exp: [100, 200], stat: [10, 20] },
+};
+
 const SYSTEM_PROMPT = `You are a Korean campus life RPG quest designer.
 Respond with ONLY a JSON object, no markdown.
 Shape:
-{"quests":[{"title":string,"type":"DAILY"|"WEEKLY","rewardCoin":number,"rewardStatType":"health"|"social"|"diligence"|"focus"|"creativity","rewardStatAmount":number}]}
+{"quests":[{"title":string,"type":"DAILY"|"WEEKLY","rewardExp":number,"rewardStatType":"health"|"social"|"diligence"|"focus"|"creativity","rewardStatAmount":number}]}
 Rules:
 - Create exactly 5 DAILY quests and exactly 3 WEEKLY quests.
 - Korean only. Realistic campus life: attendance, assignments, library, exercise, clubs, sleep.
 - No illegal, violent, sexual, medical treatment, or dangerous content.
 - title max 45 Korean characters.
-- rewardCoin: DAILY 30-150, WEEKLY 200-600.
-- rewardStatAmount: DAILY 1-3, WEEKLY 3-6.`;
+- rewardExp: DAILY 50-100, WEEKLY 100-200 (no coin rewards).
+- rewardStatAmount: DAILY 5-8, WEEKLY 10-20.`;
 
 function geminiKey() {
   return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
@@ -36,6 +41,10 @@ function geminiKey() {
 function geminiModel() {
   const requested = (process.env.GEMINI_MODEL || DEFAULT_MODEL).trim();
   return MODEL_ALIASES[requested] || requested;
+}
+
+function clampInt(value, min, max) {
+  return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
 function unwrapJsonText(text) {
@@ -121,7 +130,8 @@ async function callGemini({ user, prompt, context, key }) {
 function normalizeQuest(input, index) {
   const title = String(input?.title || '').trim();
   const type = String(input?.type || '').trim().toUpperCase();
-  const rewardCoin = Number(input?.rewardCoin);
+  const rawExp = input?.rewardExp != null ? input.rewardExp : input?.rewardCoin;
+  const rewardExp = Number(rawExp);
   const rewardStatType = String(input?.rewardStatType || '').trim();
   const rewardStatAmount = Number(input?.rewardStatAmount);
 
@@ -131,8 +141,8 @@ function normalizeQuest(input, index) {
   if (!ALLOWED_TYPES.has(type)) {
     throw new Error(`INVALID_LLM_QUEST_TYPE:${index}`);
   }
-  if (!Number.isInteger(rewardCoin) || rewardCoin < 0) {
-    throw new Error(`INVALID_LLM_QUEST_REWARD_COIN:${index}`);
+  if (!Number.isFinite(rewardExp)) {
+    throw new Error(`INVALID_LLM_QUEST_REWARD_EXP:${index}`);
   }
   if (!ALLOWED_STATS.has(rewardStatType)) {
     throw new Error(`INVALID_LLM_QUEST_REWARD_STAT:${index}`);
@@ -141,12 +151,13 @@ function normalizeQuest(input, index) {
     throw new Error(`INVALID_LLM_QUEST_REWARD_STAT_AMOUNT:${index}`);
   }
 
+  const ranges = REWARD_RANGES[type];
   return {
     title,
     type,
-    rewardCoin,
+    rewardExp: clampInt(rewardExp, ranges.exp[0], ranges.exp[1]),
     rewardStatType,
-    rewardStatAmount,
+    rewardStatAmount: clampInt(rewardStatAmount, ranges.stat[0], ranges.stat[1]),
   };
 }
 
@@ -173,8 +184,10 @@ function toApiQuest(row) {
     type: row.type,
     completed: Boolean(row.is_completed),
     progress: 0,
-    coinReward: Number(row.reward_coin) || 0,
+    coinReward: 0,
     expReward: Number(row.reward_exp) || 0,
+    rewardStatType: row.reward_stat_type,
+    rewardStatAmount: Number(row.reward_stat_amount) || 0,
     questSource: 'llm',
   };
 }
@@ -191,12 +204,13 @@ router.post('/quests/generate', requireAuth, async (req, res) => {
 
   const conn = await pool.getConnection();
   try {
-    const [[user]] = await pool.query(
+    const [userRows] = await pool.query(
       `SELECT id, nickname, major, university_name, school_year, intro
        FROM users
        WHERE id = ?`,
       [userId]
     );
+    const user = userRows[0];
     if (!user) {
       return res.status(404).json({ error: 'USER_NOT_FOUND' });
     }
@@ -210,28 +224,30 @@ router.post('/quests/generate', requireAuth, async (req, res) => {
     for (const quest of quests) {
       const [questResult] = await conn.query(
         `INSERT INTO quests (title, type, reward_exp, reward_coin, reward_stat_type, reward_stat_amount, for_roll_pool)
-         VALUES (?, ?, 0, ?, ?, ?, 0)`,
+         VALUES (?, ?, ?, 0, ?, ?, 0)`,
         [
           quest.title,
           quest.type,
-          quest.rewardCoin,
+          quest.rewardExp,
           quest.rewardStatType,
           quest.rewardStatAmount,
         ]
       );
       const questId = questResult.insertId;
-      const [userQuestResult] = await conn.query(
+      await conn.query(
         `INSERT INTO user_quests (user_id, quest_id, is_completed, assigned_date)
          VALUES (?, ?, 0, date('now'))`,
         [userId, questId]
       );
       saved.push({
         id: questId,
-        userQuestId: userQuestResult.insertId,
         title: quest.title,
         type: quest.type,
         is_completed: 0,
-        reward_coin: quest.rewardCoin,
+        reward_exp: quest.rewardExp,
+        reward_coin: 0,
+        reward_stat_type: quest.rewardStatType,
+        reward_stat_amount: quest.rewardStatAmount,
       });
     }
 

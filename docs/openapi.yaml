@@ -1021,7 +1021,7 @@ paths:
           schema:
             type: string
             enum: [llm, default]
-          description: `llm` = for_roll_pool 0(맞춤), `default` = 롤 풀 템플릿 배정(레거시 user_quests만 해당 시)
+          description: "`llm` = for_roll_pool 0(맞춤), `default` = 롤 풀 템플릿 배정(레거시 user_quests만 해당 시)"
       responses:
         "200":
           description: 퀘스트 목록 조회 성공

@@ -1,363 +1,373 @@
 'use strict';
 
-const { kstYmd, kstMondayYmd } = require('./kstUtils');
-const { applyQuestReward, ensureStatsRow } = require('./questRewardEngine');
-const { getMeUserAndPet } = require('./mePayloadService');
+const { kstDateService } = require('./kstUtils');
+const { questRewardEngine } = require('./questRewardEngine');
+const { mePayloadService } = require('./mePayloadService');
 
-const ALLOWED_STATS = ['health', 'social', 'diligence', 'focus', 'creativity'];
+class QuestRollService {
+  static ALLOWED_STATS = ['health', 'social', 'diligence', 'focus', 'creativity'];
 
-function pickRandom(arr) {
-  if (!arr.length) return null;
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function groupByStat(rows) {
-  const m = new Map();
-  for (const s of ALLOWED_STATS) m.set(s, []);
-  for (const r of rows) {
-    const st = String(r.reward_stat_type || '').trim();
-    if (m.has(st)) m.get(st).push(r);
+  constructor(kstService = kstDateService, rewardEngine = questRewardEngine, payloadService = mePayloadService) {
+    this._kst = kstService;
+    this._rewardEngine = rewardEngine;
+    this._payloadService = payloadService;
   }
-  return m;
-}
 
-function rollDailyQuestIds(poolDaily) {
-  const byStat = groupByStat(poolDaily);
-  const ids = [];
-  for (const st of ALLOWED_STATS) {
-    const pool = byStat.get(st);
-    const choice = pickRandom(pool);
-    if (!choice) {
-      throw new Error(`DAILY_POOL_MISSING_STAT:${st}`);
+  _pickRandom(arr) {
+    if (!arr.length) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  _groupByStat(rows) {
+    const m = new Map();
+    for (const s of QuestRollService.ALLOWED_STATS) m.set(s, []);
+    for (const r of rows) {
+      const st = String(r.reward_stat_type || '').trim();
+      if (m.has(st)) m.get(st).push(r);
     }
-    ids.push(choice.id);
+    return m;
   }
-  return ids;
-}
 
-function rollWeeklyQuestIds(poolWeekly) {
-  const stats = shuffleArray([...ALLOWED_STATS]).slice(0, 3);
-  const byStat = groupByStat(poolWeekly);
-  const ids = [];
-  for (const st of stats) {
-    const pool = byStat.get(st);
-    const choice = pickRandom(pool);
-    if (!choice) {
-      throw new Error(`WEEKLY_POOL_MISSING_STAT:${st}`);
+  _rollDailyQuestIds(poolDaily) {
+    const byStat = this._groupByStat(poolDaily);
+    const ids = [];
+    for (const st of QuestRollService.ALLOWED_STATS) {
+      const pool = byStat.get(st);
+      const choice = this._pickRandom(pool);
+      if (!choice) {
+        throw new Error(`DAILY_POOL_MISSING_STAT:${st}`);
+      }
+      ids.push(choice.id);
     }
-    ids.push(choice.id);
-  }
-  return ids;
-}
-
-function shuffleArray(a) {
-  for (let i = a.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function mapRollRow(r) {
-  return {
-    assignmentId: r.id,
-    slot: r.slot,
-    questId: r.quest_id,
-    title: r.title,
-    rewardExp: Number(r.reward_exp) || 0,
-    rewardCoin: Number(r.reward_coin) || 0,
-    rewardStatType: r.reward_stat_type,
-    rewardStatAmount: Number(r.reward_stat_amount) || 0,
-    completed: Boolean(r.completed),
-    rewardGrantedThisSlot: Boolean(r.reward_granted_this_slot),
-    questSource: r.quest_source || 'default',
-  };
-}
-
-async function fetchTemplatePool(conn) {
-  const [rows] = await conn.query(
-    `SELECT id, title, type, reward_exp, reward_coin, reward_stat_type, reward_stat_amount
-     FROM quests
-     WHERE for_roll_pool = 1 AND type IN ('DAILY', 'WEEKLY')`
-  );
-  return rows;
-}
-
-async function replaceDailyRoll(conn, userId, rollDate, questIds) {
-  await conn.query('DELETE FROM user_daily_quest_roll WHERE user_id = ? AND roll_date = ?', [userId, rollDate]);
-  for (let slot = 0; slot < questIds.length; slot += 1) {
-    await conn.query(
-      `INSERT INTO user_daily_quest_roll (user_id, roll_date, slot, quest_id, completed, reward_granted_this_slot, quest_source)
-       VALUES (?, ?, ?, ?, 0, 0, 'default')`,
-      [userId, rollDate, slot, questIds[slot]]
-    );
-  }
-}
-
-async function replaceWeeklyRoll(conn, userId, weekId, questIds) {
-  await conn.query('DELETE FROM user_weekly_quest_roll WHERE user_id = ? AND week_id = ?', [userId, weekId]);
-  for (let slot = 0; slot < questIds.length; slot += 1) {
-    await conn.query(
-      `INSERT INTO user_weekly_quest_roll (user_id, week_id, slot, quest_id, completed, reward_granted_this_slot, quest_source)
-       VALUES (?, ?, ?, ?, 0, 0, 'default')`,
-      [userId, weekId, slot, questIds[slot]]
-    );
-  }
-}
-
-async function ensureRollsForUser(conn, userId) {
-  const rollDate = kstYmd();
-  const weekId = kstMondayYmd(rollDate);
-  const pool = await fetchTemplatePool(conn);
-  const dailyPool = pool.filter((q) => q.type === 'DAILY');
-  const weeklyPool = pool.filter((q) => q.type === 'WEEKLY');
-
-  const [dRows] = await conn.query(
-    'SELECT COUNT(*) AS c FROM user_daily_quest_roll WHERE user_id = ? AND roll_date = ?',
-    [userId, rollDate]
-  );
-  if (Number(dRows[0]?.c) !== 5) {
-    const ids = rollDailyQuestIds(dailyPool);
-    await replaceDailyRoll(conn, userId, rollDate, ids);
+    return ids;
   }
 
-  const [wRows] = await conn.query(
-    'SELECT COUNT(*) AS c FROM user_weekly_quest_roll WHERE user_id = ? AND week_id = ?',
-    [userId, weekId]
-  );
-  if (Number(wRows[0]?.c) !== 3) {
-    const ids = rollWeeklyQuestIds(weeklyPool);
-    await replaceWeeklyRoll(conn, userId, weekId, ids);
+  _rollWeeklyQuestIds(poolWeekly) {
+    const stats = this._shuffleArray([...QuestRollService.ALLOWED_STATS]).slice(0, 3);
+    const byStat = this._groupByStat(poolWeekly);
+    const ids = [];
+    for (const st of stats) {
+      const pool = byStat.get(st);
+      const choice = this._pickRandom(pool);
+      if (!choice) {
+        throw new Error(`WEEKLY_POOL_MISSING_STAT:${st}`);
+      }
+      ids.push(choice.id);
+    }
+    return ids;
   }
 
-  return { rollDate, weekId };
-}
+  _shuffleArray(a) {
+    for (let i = a.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
 
-async function selectDailyWithQuests(conn, userId, rollDate) {
-  const [rows] = await conn.query(
-    `SELECT
-       r.id,
-       r.slot,
-       r.quest_id,
-       r.completed,
-       r.reward_granted_this_slot,
-       r.quest_source,
-       q.title,
-       q.reward_exp,
-       q.reward_coin,
-       q.reward_stat_type,
-       q.reward_stat_amount
-     FROM user_daily_quest_roll r
-     INNER JOIN quests q ON q.id = r.quest_id
-     WHERE r.user_id = ? AND r.roll_date = ?
-     ORDER BY r.slot ASC`,
-    [userId, rollDate]
-  );
-  return rows;
-}
-
-async function selectWeeklyWithQuests(conn, userId, weekId) {
-  const [rows] = await conn.query(
-    `SELECT
-       r.id,
-       r.slot,
-       r.quest_id,
-       r.completed,
-       r.reward_granted_this_slot,
-       r.quest_source,
-       q.title,
-       q.reward_exp,
-       q.reward_coin,
-       q.reward_stat_type,
-       q.reward_stat_amount
-     FROM user_weekly_quest_roll r
-     INNER JOIN quests q ON q.id = r.quest_id
-     WHERE r.user_id = ? AND r.week_id = ?
-     ORDER BY r.slot ASC`,
-    [userId, weekId]
-  );
-  return rows;
-}
-
-async function getCurrentQuestSet(db, userId) {
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
-    await ensureStatsRow(conn, userId);
-    const { rollDate, weekId } = await ensureRollsForUser(conn, userId);
-    const dailyRows = await selectDailyWithQuests(conn, userId, rollDate);
-    const weeklyRows = await selectWeeklyWithQuests(conn, userId, weekId);
-    await conn.commit();
+  _mapRollRow(r) {
     return {
-      rollDate,
-      weekId,
-      daily: dailyRows.map(mapRollRow),
-      weekly: weeklyRows.map(mapRollRow),
+      assignmentId: r.id,
+      slot: r.slot,
+      questId: r.quest_id,
+      title: r.title,
+      rewardExp: Number(r.reward_exp) || 0,
+      rewardCoin: Number(r.reward_coin) || 0,
+      rewardStatType: r.reward_stat_type,
+      rewardStatAmount: Number(r.reward_stat_amount) || 0,
+      completed: Boolean(r.completed),
+      rewardGrantedThisSlot: Boolean(r.reward_granted_this_slot),
+      questSource: r.quest_source || 'default',
     };
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
   }
-}
 
-async function patchDailySlot(db, userId, slot, completed) {
-  if (!Number.isInteger(slot) || slot < 0 || slot > 4) {
-    return { status: 400, body: { error: 'INVALID_SLOT', message: '일일 슬롯은 0~4입니다.' } };
-  }
-  const rollDate = kstYmd();
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
-    await ensureRollsForUser(conn, userId);
+  async _fetchTemplatePool(conn) {
     const [rows] = await conn.query(
-      `SELECT r.id, r.completed, r.reward_granted_this_slot,
-              q.reward_exp, q.reward_coin, q.reward_stat_type, q.reward_stat_amount
+      `SELECT id, title, type, reward_exp, reward_coin, reward_stat_type, reward_stat_amount
+       FROM quests
+       WHERE for_roll_pool = 1 AND type IN ('DAILY', 'WEEKLY')`
+    );
+    return rows;
+  }
+
+  async _replaceDailyRoll(conn, userId, rollDate, questIds) {
+    await conn.query('DELETE FROM user_daily_quest_roll WHERE user_id = ? AND roll_date = ?', [userId, rollDate]);
+    for (let slot = 0; slot < questIds.length; slot += 1) {
+      await conn.query(
+        `INSERT INTO user_daily_quest_roll (user_id, roll_date, slot, quest_id, completed, reward_granted_this_slot, quest_source)
+         VALUES (?, ?, ?, ?, 0, 0, 'default')`,
+        [userId, rollDate, slot, questIds[slot]]
+      );
+    }
+  }
+
+  async _replaceWeeklyRoll(conn, userId, weekId, questIds) {
+    await conn.query('DELETE FROM user_weekly_quest_roll WHERE user_id = ? AND week_id = ?', [userId, weekId]);
+    for (let slot = 0; slot < questIds.length; slot += 1) {
+      await conn.query(
+        `INSERT INTO user_weekly_quest_roll (user_id, week_id, slot, quest_id, completed, reward_granted_this_slot, quest_source)
+         VALUES (?, ?, ?, ?, 0, 0, 'default')`,
+        [userId, weekId, slot, questIds[slot]]
+      );
+    }
+  }
+
+  async _ensureRollsForUser(conn, userId) {
+    const rollDate = this._kst.kstYmd();
+    const weekId = this._kst.kstMondayYmd(rollDate);
+    const pool = await this._fetchTemplatePool(conn);
+    const dailyPool = pool.filter((q) => q.type === 'DAILY');
+    const weeklyPool = pool.filter((q) => q.type === 'WEEKLY');
+
+    const [dRows] = await conn.query(
+      'SELECT COUNT(*) AS c FROM user_daily_quest_roll WHERE user_id = ? AND roll_date = ?',
+      [userId, rollDate]
+    );
+    if (Number(dRows[0]?.c) !== 5) {
+      const ids = this._rollDailyQuestIds(dailyPool);
+      await this._replaceDailyRoll(conn, userId, rollDate, ids);
+    }
+
+    const [wRows] = await conn.query(
+      'SELECT COUNT(*) AS c FROM user_weekly_quest_roll WHERE user_id = ? AND week_id = ?',
+      [userId, weekId]
+    );
+    if (Number(wRows[0]?.c) !== 3) {
+      const ids = this._rollWeeklyQuestIds(weeklyPool);
+      await this._replaceWeeklyRoll(conn, userId, weekId, ids);
+    }
+
+    return { rollDate, weekId };
+  }
+
+  async _selectDailyWithQuests(conn, userId, rollDate) {
+    const [rows] = await conn.query(
+      `SELECT
+         r.id,
+         r.slot,
+         r.quest_id,
+         r.completed,
+         r.reward_granted_this_slot,
+         r.quest_source,
+         q.title,
+         q.reward_exp,
+         q.reward_coin,
+         q.reward_stat_type,
+         q.reward_stat_amount
        FROM user_daily_quest_roll r
        INNER JOIN quests q ON q.id = r.quest_id
-       WHERE r.user_id = ? AND r.roll_date = ? AND r.slot = ?
-       LIMIT 1`,
-      [userId, rollDate, slot]
+       WHERE r.user_id = ? AND r.roll_date = ?
+       ORDER BY r.slot ASC`,
+      [userId, rollDate]
     );
-    if (!rows.length) {
-      await conn.rollback();
-      return { status: 404, body: { error: 'SLOT_NOT_FOUND', message: '해당 슬롯의 일일 퀘스트가 없습니다.' } };
-    }
-    const row = rows[0];
-    let rewards = null;
-    let levelUp = false;
-    let evolved = false;
-
-    if (completed) {
-      if (!row.completed) {
-        await conn.query('UPDATE user_daily_quest_roll SET completed = 1 WHERE id = ?', [row.id]);
-        if (!row.reward_granted_this_slot) {
-          const r = await applyQuestReward(conn, userId, row);
-          levelUp = r.levelUp;
-          evolved = r.evolved;
-          rewards = {
-            exp: r.exp,
-            coin: r.coin,
-            statType: r.statType,
-            statAmount: r.statAmount,
-            fatigue: r.fatigue,
-          };
-          await conn.query('UPDATE user_daily_quest_roll SET reward_granted_this_slot = 1 WHERE id = ?', [row.id]);
-        }
-      }
-    } else {
-      await conn.query('UPDATE user_daily_quest_roll SET completed = 0 WHERE id = ?', [row.id]);
-    }
-
-    await conn.commit();
-    const fresh = await getCurrentQuestSet(db, userId);
-    const snap = await getMeUserAndPet(db, userId);
-    return {
-      status: 200,
-      body: {
-        ok: true,
-        rewards,
-        levelUp,
-        evolved,
-        rollDate: fresh.rollDate,
-        weekId: fresh.weekId,
-        rollWeek: fresh.weekId,
-        daily: fresh.daily,
-        weekly: fresh.weekly,
-        user: snap ? snap.user : null,
-        pet: snap ? snap.pet : null,
-      },
-    };
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
+    return rows;
   }
-}
 
-async function patchWeeklySlot(db, userId, slot, completed) {
-  if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
-    return { status: 400, body: { error: 'INVALID_SLOT', message: '주간 슬롯은 0~2입니다.' } };
-  }
-  const rollDate = kstYmd();
-  const weekId = kstMondayYmd(rollDate);
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
-    await ensureRollsForUser(conn, userId);
+  async _selectWeeklyWithQuests(conn, userId, weekId) {
     const [rows] = await conn.query(
-      `SELECT r.id, r.completed, r.reward_granted_this_slot,
-              q.reward_exp, q.reward_coin, q.reward_stat_type, q.reward_stat_amount
+      `SELECT
+         r.id,
+         r.slot,
+         r.quest_id,
+         r.completed,
+         r.reward_granted_this_slot,
+         r.quest_source,
+         q.title,
+         q.reward_exp,
+         q.reward_coin,
+         q.reward_stat_type,
+         q.reward_stat_amount
        FROM user_weekly_quest_roll r
        INNER JOIN quests q ON q.id = r.quest_id
-       WHERE r.user_id = ? AND r.week_id = ? AND r.slot = ?
-       LIMIT 1`,
-      [userId, weekId, slot]
+       WHERE r.user_id = ? AND r.week_id = ?
+       ORDER BY r.slot ASC`,
+      [userId, weekId]
     );
-    if (!rows.length) {
+    return rows;
+  }
+
+  async getCurrentQuestSet(db, userId) {
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await this._rewardEngine.ensureStatsRow(conn, userId);
+      const { rollDate, weekId } = await this._ensureRollsForUser(conn, userId);
+      const dailyRows = await this._selectDailyWithQuests(conn, userId, rollDate);
+      const weeklyRows = await this._selectWeeklyWithQuests(conn, userId, weekId);
+      await conn.commit();
+      return {
+        rollDate,
+        weekId,
+        daily: dailyRows.map((r) => this._mapRollRow(r)),
+        weekly: weeklyRows.map((r) => this._mapRollRow(r)),
+      };
+    } catch (e) {
       await conn.rollback();
-      return { status: 404, body: { error: 'SLOT_NOT_FOUND', message: '해당 슬롯의 주간 퀘스트가 없습니다.' } };
+      throw e;
+    } finally {
+      conn.release();
     }
-    const row = rows[0];
-    let rewards = null;
-    let levelUp = false;
-    let evolved = false;
+  }
 
-    if (completed) {
-      if (!row.completed) {
-        await conn.query('UPDATE user_weekly_quest_roll SET completed = 1 WHERE id = ?', [row.id]);
-        if (!row.reward_granted_this_slot) {
-          const r = await applyQuestReward(conn, userId, row);
-          levelUp = r.levelUp;
-          evolved = r.evolved;
-          rewards = {
-            exp: r.exp,
-            coin: r.coin,
-            statType: r.statType,
-            statAmount: r.statAmount,
-            fatigue: r.fatigue,
-          };
-          await conn.query('UPDATE user_weekly_quest_roll SET reward_granted_this_slot = 1 WHERE id = ?', [row.id]);
-        }
+  async patchDailySlot(db, userId, slot, completed) {
+    if (!Number.isInteger(slot) || slot < 0 || slot > 4) {
+      return { status: 400, body: { error: 'INVALID_SLOT', message: '일일 슬롯은 0~4입니다.' } };
+    }
+    const rollDate = this._kst.kstYmd();
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await this._ensureRollsForUser(conn, userId);
+      const [rows] = await conn.query(
+        `SELECT r.id, r.completed, r.reward_granted_this_slot,
+                q.reward_exp, q.reward_coin, q.reward_stat_type, q.reward_stat_amount
+         FROM user_daily_quest_roll r
+         INNER JOIN quests q ON q.id = r.quest_id
+         WHERE r.user_id = ? AND r.roll_date = ? AND r.slot = ?
+         LIMIT 1`,
+        [userId, rollDate, slot]
+      );
+      if (!rows.length) {
+        await conn.rollback();
+        return { status: 404, body: { error: 'SLOT_NOT_FOUND', message: '해당 슬롯의 일일 퀘스트가 없습니다.' } };
       }
-    } else {
-      await conn.query('UPDATE user_weekly_quest_roll SET completed = 0 WHERE id = ?', [row.id]);
-    }
+      const row = rows[0];
+      let rewards = null;
+      let levelUp = false;
+      let evolved = false;
 
-    await conn.commit();
-    const fresh = await getCurrentQuestSet(db, userId);
-    const snap = await getMeUserAndPet(db, userId);
-    return {
-      status: 200,
-      body: {
-        ok: true,
-        rewards,
-        levelUp,
-        evolved,
-        rollDate: fresh.rollDate,
-        weekId: fresh.weekId,
-        rollWeek: fresh.weekId,
-        daily: fresh.daily,
-        weekly: fresh.weekly,
-        user: snap ? snap.user : null,
-        pet: snap ? snap.pet : null,
-      },
-    };
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
+      if (completed) {
+        if (!row.completed) {
+          await conn.query('UPDATE user_daily_quest_roll SET completed = 1 WHERE id = ?', [row.id]);
+          if (!row.reward_granted_this_slot) {
+            const r = await this._rewardEngine.applyQuestReward(conn, userId, row);
+            levelUp = r.levelUp;
+            evolved = r.evolved;
+            rewards = {
+              exp: r.exp,
+              coin: r.coin,
+              statType: r.statType,
+              statAmount: r.statAmount,
+              fatigue: r.fatigue,
+            };
+            await conn.query('UPDATE user_daily_quest_roll SET reward_granted_this_slot = 1 WHERE id = ?', [row.id]);
+          }
+        }
+      } else {
+        await conn.query('UPDATE user_daily_quest_roll SET completed = 0 WHERE id = ?', [row.id]);
+      }
+
+      await conn.commit();
+      const fresh = await this.getCurrentQuestSet(db, userId);
+      const snap = await this._payloadService.getMeUserAndPet(db, userId);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          rewards,
+          levelUp,
+          evolved,
+          rollDate: fresh.rollDate,
+          weekId: fresh.weekId,
+          rollWeek: fresh.weekId,
+          daily: fresh.daily,
+          weekly: fresh.weekly,
+          user: snap ? snap.user : null,
+          pet: snap ? snap.pet : null,
+        },
+      };
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async patchWeeklySlot(db, userId, slot, completed) {
+    if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
+      return { status: 400, body: { error: 'INVALID_SLOT', message: '주간 슬롯은 0~2입니다.' } };
+    }
+    const rollDate = this._kst.kstYmd();
+    const weekId = this._kst.kstMondayYmd(rollDate);
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await this._ensureRollsForUser(conn, userId);
+      const [rows] = await conn.query(
+        `SELECT r.id, r.completed, r.reward_granted_this_slot,
+                q.reward_exp, q.reward_coin, q.reward_stat_type, q.reward_stat_amount
+         FROM user_weekly_quest_roll r
+         INNER JOIN quests q ON q.id = r.quest_id
+         WHERE r.user_id = ? AND r.week_id = ? AND r.slot = ?
+         LIMIT 1`,
+        [userId, weekId, slot]
+      );
+      if (!rows.length) {
+        await conn.rollback();
+        return { status: 404, body: { error: 'SLOT_NOT_FOUND', message: '해당 슬롯의 주간 퀘스트가 없습니다.' } };
+      }
+      const row = rows[0];
+      let rewards = null;
+      let levelUp = false;
+      let evolved = false;
+
+      if (completed) {
+        if (!row.completed) {
+          await conn.query('UPDATE user_weekly_quest_roll SET completed = 1 WHERE id = ?', [row.id]);
+          if (!row.reward_granted_this_slot) {
+            const r = await this._rewardEngine.applyQuestReward(conn, userId, row);
+            levelUp = r.levelUp;
+            evolved = r.evolved;
+            rewards = {
+              exp: r.exp,
+              coin: r.coin,
+              statType: r.statType,
+              statAmount: r.statAmount,
+              fatigue: r.fatigue,
+            };
+            await conn.query('UPDATE user_weekly_quest_roll SET reward_granted_this_slot = 1 WHERE id = ?', [row.id]);
+          }
+        }
+      } else {
+        await conn.query('UPDATE user_weekly_quest_roll SET completed = 0 WHERE id = ?', [row.id]);
+      }
+
+      await conn.commit();
+      const fresh = await this.getCurrentQuestSet(db, userId);
+      const snap = await this._payloadService.getMeUserAndPet(db, userId);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          rewards,
+          levelUp,
+          evolved,
+          rollDate: fresh.rollDate,
+          weekId: fresh.weekId,
+          rollWeek: fresh.weekId,
+          daily: fresh.daily,
+          weekly: fresh.weekly,
+          user: snap ? snap.user : null,
+          pet: snap ? snap.pet : null,
+        },
+      };
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
   }
 }
 
+const questRollService = new QuestRollService();
+
 module.exports = {
-  kstYmd,
-  kstMondayYmd,
-  getCurrentQuestSet,
-  patchDailySlot,
-  patchWeeklySlot,
-  ALLOWED_STATS,
+  QuestRollService,
+  questRollService,
+  getCurrentQuestSet: questRollService.getCurrentQuestSet.bind(questRollService),
+  patchDailySlot: questRollService.patchDailySlot.bind(questRollService),
+  patchWeeklySlot: questRollService.patchWeeklySlot.bind(questRollService),
+  ALLOWED_STATS: QuestRollService.ALLOWED_STATS,
 };
